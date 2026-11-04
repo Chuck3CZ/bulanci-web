@@ -405,6 +405,7 @@ static void cryptwatch(CPU *c, const ImpEnt *e, uint32_t n_call){
     }
 }
 
+uint16_t cp1250_to_u(uint8_t b); uint8_t u_to_cp1250(uint16_t u);   /* w2a.c */
 int win32_call(CPU *c, uint32_t idx){
     if (idx >= g_nimps) return 0;
     const ImpEnt *e = &g_imps[idx];
@@ -468,7 +469,7 @@ int win32_call(CPU *c, uint32_t idx){
         uint32_t p=ARG(c,0);
         if(p){ MR32(p+4)=5; MR32(p+8)=1; MR32(p+12)=2600; MR32(p+16)=2; }
         r = 1; }
-    else if (!strcmp(n,"GetACP"))                r = 1252;
+    else if (!strcmp(n,"GetACP"))                r = 1250;
     else if (!strcmp(n,"GetOEMCP"))              r = 437;
     else if (!strcmp(n,"GetCPInfo")){ uint32_t p=ARG(c,1); if(p){ mem_commit(p,20); memset(g_mem+p,0,20); MR32(p)=1; } r=1; }
     else if (!strcmp(n,"IsValidCodePage"))       r = 1;
@@ -652,17 +653,23 @@ int win32_call(CPU *c, uint32_t idx){
      * filter graph (CoCreateInstance(CLSID_FilterGraph)) and skips the movie
      * when that fails; a success without an object sent it into NULL vtables.
      * The movies come back later as AV1 (docs/PLAN.md). */
+    else if (!strcmp(n,"CoCreateInstance") && ARG(c,0) && MR32(ARG(c,0)) == 0x47d4d946u){   /* CLSID_DirectSound: then IDirectSound::Initialize */
+        uint32_t com_directsoundcreate(uint32_t); r = com_directsoundcreate(ARG(c,4)); }
+    else if (!strcmp(n,"DirectDrawCreate")){ uint32_t ddraw_create(uint32_t); r = ddraw_create(ARG(c,1)); }
+    else if (!strcmp(n,"DirectInputCreateW") || !strcmp(n,"DirectInputCreateA")){
+        /* IDirectInput(2/7) and its devices begin as IDirectInput8 and IDirectInputDevice8 do */
+        uint32_t com_directinput8create(uint32_t); r = com_directinput8create(ARG(c,2)); }
     else if (!strcmp(n,"CoCreateInstance")){ uint32_t pp = ARG(c,4); if (pp && mem_is_committed(pp)) MR32(pp) = 0; r = 0x80040154u; }   /* REGDB_E_CLASSNOTREG */
     else if (!strcmp(n,"CoInitialize") || !strcmp(n,"CoInitializeEx")) r = 0;
     else if (!strcmp(n,"CoUninitialize")) r = 0;
     else if (!strcmp(n,"MultiByteToWideChar")){ uint32_t src=ARG(c,2); int sl=(int)ARG(c,3);
         uint32_t dst=ARG(c,4); int dl=(int)ARG(c,5);
         if(sl<0) sl=(int)strlen((char*)(g_mem+src))+1;
-        if(dl==0){ r=(uint32_t)sl; } else { int k=0; for(;k<sl&&k<dl;k++) MR16(dst+2u*k)=MR8(src+k); r=(uint32_t)k; } }
+        if(dl==0){ r=(uint32_t)sl; } else { int k=0; for(;k<sl&&k<dl;k++) MR16(dst+2u*k)=cp1250_to_u(MR8(src+k)); r=(uint32_t)k; } }
     else if (!strcmp(n,"WideCharToMultiByte")){ uint32_t src=ARG(c,2); int sl=(int)ARG(c,3);
         uint32_t dst=ARG(c,4); int dl=(int)ARG(c,5);
         if(sl<0){ sl=0; while(MR16(src+2u*sl)) sl++; sl++; }
-        if(dl==0){ r=(uint32_t)sl; } else { int k=0; for(;k<sl&&k<dl;k++) MR8(dst+k)=(uint8_t)MR16(src+2u*k); r=(uint32_t)k; } }
+        if(dl==0){ r=(uint32_t)sl; } else { int k=0; for(;k<sl&&k<dl;k++) MR8(dst+k)=u_to_cp1250(MR16(src+2u*k)); r=(uint32_t)k; } }
     else if (!strcmp(n,"GetStringTypeW")||!strcmp(n,"GetStringTypeA")){
         /* A: (LCID,dwInfoType,src,cch,out)  W: (dwInfoType,src,cch,out) */
         int aform = (n[13]=='A');
