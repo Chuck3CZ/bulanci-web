@@ -46,6 +46,7 @@ _SITES = [('call',  re.compile(r'\bsub_([0-9a-f]{8})\(c\);')),
           ('icall', re.compile(r'\bdispatch_indirect\(c, [^;]*?\);')),
           ('cpuid', re.compile(r'\bcpuid_shim\(c\);')),
           ('all',   re.compile(r'\bguest_hook\(c, [^;]*?\);')),
+          ('all',   re.compile(r'\bEH_SEH\(c, [01]\);')),
           ('all',   re.compile(r'\bunsupported_insn\(c, ?0x[0-9a-f]+u, ?"[^"]*"\);')),
           ('ret',   re.compile(r'\breturn;'))]
 _EFGET = re.compile(r'\beflags_get\(c\)')

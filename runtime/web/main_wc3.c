@@ -128,7 +128,7 @@ static void *guest_main_thread(void *unused){
 }
 
 int main(int argc, char **argv){
-    const char *exe = argc > 1 ? argv[1] : "/data/CMR5.EXE";
+    const char *exe = argc > 1 ? argv[1] : "/data/bulanci.exe";
 
     mem_init();
     fileio_set_root(exe);

@@ -604,4 +604,11 @@ static inline int mem_is_committed(uint32_t addr){
     return (g_cbits[pg>>3] >> (pg&7)) & 1;
 }
 
+
+/* C++ exceptions (runtime/eh.c): after a write of fs:[0] in a function with
+ * catch blocks (tools/lift.py eh_conts); a catch resumes here by longjmp */
+#include <setjmp.h>
+jmp_buf *eh_fs_written(CPU *c, int install);
+int eh_resume_take(void);
+#define EH_SEH(c, inst) do{ jmp_buf *_ehb = eh_fs_written((c), (inst)); if (_ehb){ if (setjmp(*_ehb)) {} } }while(0)
 #endif

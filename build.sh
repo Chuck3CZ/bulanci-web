@@ -67,7 +67,7 @@ done
 # runtime still calls (widescreen, enhancements, frame pacer, DirectInput,
 # D3DX, ...), as headers and neutral stand-ins; docs/PLAN.md lists what is
 # left to take out.
-RT="mem dispatch genexec heap ffp watchdog win32 win32_ext com debug res fileio vsemu oracle lifecycle keyboard dinput_kbd winsock module d3d8 user32 nfsu2_compat/stubs"
+RT="eh w2a mem dispatch genexec heap ffp watchdog win32 win32_ext com debug res fileio vsemu oracle lifecycle keyboard dinput_kbd winsock module d3d8 user32 nfsu2_compat/stubs"
 RTFLAGS="$CFLAGS -Iruntime/nfsu2_compat"
 WEB="$(cd runtime/web && ls *.c | sed 's/\.c$//')"
 mkdir -p out/web/rt; rm -f out/web/rt/*.o

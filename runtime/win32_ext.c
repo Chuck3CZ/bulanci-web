@@ -1371,8 +1371,61 @@ static uint32_t disk_space(uint64_t *fr, uint64_t *tot){
     return 1;
 }
 
+/* Bulanci: the registry's W calls (Software\SleepTeam\Bulanci).  Values of any
+ * type and size, by name, kept for the session (keys are not told apart). */
+#define REGW_N 64
+static struct { char name[64]; uint32_t type, size; uint8_t data[512]; } g_regw[REGW_N];
+static int g_regw_n;
+static void regw_name(uint32_t p, char *o, int n){
+    int i = 0;
+    if (p) for (; i < n - 1 && mem_is_committed(p + 2*i + 1) && MR16(p + 2*i); i++) o[i] = (char)MR16(p + 2*i);
+    o[i] = 0;
+}
+static int regw_find(const char *vn){
+    for (int i = 0; i < g_regw_n; i++) if (!strcasecmp(g_regw[i].name, vn)) return i;
+    return -1;
+}
+static int regw_call(CPU *c, const char *n, uint32_t *out){
+    uint32_t r;
+    if (!strcmp(n,"RegOpenKeyExW")){ uint32_t p=A(c,4); if(p) MR32(p)=obj_new(OB_KEY); r=ERROR_SUCCESS; }
+    else if (!strcmp(n,"RegCreateKeyExW")){ uint32_t p=A(c,7), d=A(c,8); if(p) MR32(p)=obj_new(OB_KEY); if(d) MR32(d)=2u; r=ERROR_SUCCESS; }
+    else if (!strcmp(n,"RegQueryValueExW")){
+        char vn[64]; regw_name(A(c,1), vn, sizeof vn);
+        uint32_t ptype=A(c,3), pdata=A(c,4), pcb=A(c,5); int i = regw_find(vn);
+        if (getenv("REGLOG")) fprintf(stderr,"  [registry] QueryValueW(\"%s\") %s\n", vn, i < 0 ? "not found" : "found");
+        /* Bulanci throws a C++ exception for a missing value and catches it to
+         * use its default; the port has no SEH dispatch, so a missing value is
+         * found as zeros of the size the caller asks for (REGMISS=1: not found). */
+        if (i < 0 && !getenv("REGMISS") && pdata && pcb && MR32(pcb) && MR32(pcb) <= 512u){
+            uint32_t cb = MR32(pcb);
+            if (getenv("REGLOG")) fprintf(stderr,"  [registry]   -> default: %u zero bytes (caller 0x%08x)\n", cb, MR32(c->esp));
+            mem_commit(pdata, cb); memset(g_mem+pdata, 0, cb); if (ptype) MR32(ptype) = cb == 4u ? 4u : 3u; r = ERROR_SUCCESS;
+        }
+        else if (i < 0) r = ERROR_FILE_NOT_FOUND;
+        else {
+            if (ptype) MR32(ptype) = g_regw[i].type;
+            if (!pdata) r = ERROR_SUCCESS;
+            else if (!pcb || MR32(pcb) < g_regw[i].size) r = 234u;          /* ERROR_MORE_DATA */
+            else { mem_commit(pdata, g_regw[i].size); memcpy(g_mem+pdata, g_regw[i].data, g_regw[i].size); r = ERROR_SUCCESS; }
+            if (pcb) MR32(pcb) = g_regw[i].size;
+        }
+    }
+    else if (!strcmp(n,"RegSetValueExW")){
+        char vn[64]; regw_name(A(c,1), vn, sizeof vn);
+        uint32_t type=A(c,3), pdata=A(c,4), cb=A(c,5); int i = regw_find(vn);
+        if (i < 0 && g_regw_n < REGW_N){ i = g_regw_n++; snprintf(g_regw[i].name, sizeof g_regw[i].name, "%s", vn); }
+        if (i >= 0 && cb <= sizeof g_regw[i].data && (!cb || mem_is_committed(pdata+cb-1))){
+            g_regw[i].type = type; g_regw[i].size = cb; if (cb) memcpy(g_regw[i].data, g_mem+pdata, cb); }
+        if (getenv("REGLOG")) fprintf(stderr,"  [registry] SetValueW(\"%s\") type=%u size=%u\n", vn, type, cb);
+        r = ERROR_SUCCESS;
+    }
+    else return 0;
+    *out = r; return 1;
+}
+
 int win32_ext_call(CPU *c, const char *n, uint32_t *out){
     uint32_t r = 0;
+    if (regw_call(c, n, out)) return 1;
     /* --- Registry --- */
     if (!strcmp(n,"RegOpenKeyA")){ uint32_t p=A(c,2); if(p) MR32(p)=obj_new(OB_KEY); r=ERROR_SUCCESS; }
     else if (!strcmp(n,"RegOpenKeyExA")){

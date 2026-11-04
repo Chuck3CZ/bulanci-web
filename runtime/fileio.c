@@ -22,7 +22,7 @@ void mem_commit(uint32_t,uint32_t);
 /* The virtual game folder: what GetModuleFileNameA and GetCurrentDirectoryA
  * say, and a prefix every guest path may carry.  CMR5 builds its paths from
  * the installer's default folder (fonts\\HelNu_10.dds and the rest). */
-#define GAME_DIR     "Program Files\\Codemasters\\Colin McRae Rally 2005"
+#define GAME_DIR     "Bulanci"
 #define GAME_DIR_LEN ((int)sizeof GAME_DIR - 1)
 const char *fileio_game_dir(void){ return "C:\\" GAME_DIR; }
 

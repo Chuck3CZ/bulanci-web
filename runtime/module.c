@@ -294,12 +294,12 @@ int module_load_exe(const char *path){
     imp_index();
     for (int i = 0; i < g_modtab_count; i++)
         if (!strcmp(g_modtab[i].id, "exe")) g_exe = i;
-    if (g_exe < 0){ fprintf(stderr, "[module] FATAL: gen/modtab.c has no CMR5.EXE (run ./gen.sh)\n"); return -1; }
+    if (g_exe < 0){ fprintf(stderr, "[module] FATAL: gen/modtab.c has no bulanci.exe (run ./gen.sh)\n"); return -1; }
     snprintf(g_st[g_exe].path, sizeof g_st[g_exe].path, "%s", path);
     uint32_t err = 0;
     g_static_n = 0;
     if (!load_tree(g_exe, g_static_order, &g_static_n, &err)){
-        fprintf(stderr, "[module] FATAL: CMR5.EXE or a DLL it imports did not load (error %u)\n", err);
+        fprintf(stderr, "[module] FATAL: bulanci.exe or a DLL it imports did not load (error %u)\n", err);
         return -1;
     }
     return 0;
@@ -355,7 +355,7 @@ uint32_t module_proc(uint32_t h, uint32_t nm, uint32_t *err){
 int module_file_name(uint32_t h, char *out, int n){
     int i = h ? by_handle(h) : g_exe;
     if (i < 0 || !g_st[i].mapped) return 0;
-    snprintf(out, (size_t)n, "%s\\%s", fileio_game_dir(), i == g_exe ? "CMR5.EXE" : g_modtab[i].info->name);
+    snprintf(out, (size_t)n, "%s\\%s", fileio_game_dir(), i == g_exe ? "bulanci.exe" : g_modtab[i].info->name);
     return 1;
 }
 int module_image_at(uint32_t a, uint32_t *base, uint32_t *size){

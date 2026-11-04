@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """x86-32 -> C lifter.  Translates a function into C that runs on the CPU state."""
-import sys, struct, collections
+import struct, sys, collections
 import pefile
 from capstone import *
 from capstone.x86 import *
@@ -553,8 +553,10 @@ class Lifter:
         return (reg, d, ents) if all(self.in_text(t) for t in ents) else None
 
     # ---------- function discovery (CFG) ----------
-    def discover(self, entry, maxins=4000):
+    def discover(self, entry, maxins=4000, extra=()):
         blocks={}; q=collections.deque([entry]); seen=set([entry]); calls=set()
+        for t in extra:
+            if t not in seen and self.in_text(t): seen.add(t); q.append(t)
         jt = _os_pc.environ.get('JTSWITCH', '') == '1'
         bounds = {}; self.jtab = {}
         while True:
@@ -615,6 +617,53 @@ class Lifter:
                     if t not in seen: seen.add(t); q.append(t); new = True
             if not new: break
         return blocks, calls
+
+
+    # ---------- C++ exceptions (runtime/eh.c) ----------
+    def rd32img(self, a):
+        for nm, va, sz, data in self.secs:
+            if va <= a and a + 4 <= va + len(data): return struct.unpack_from('<I', data, a - va)[0]
+        return None
+    def eh_conts(self, entry):
+        """The addresses a C++ catch in this function continues at: the
+        function installs an MSVC frame (push <handler>; mov eax, fs:[0]),
+        the handler thunk names the FuncInfo, each catch funclet ends in
+        mov eax, <continuation>; ret.  Empty when it has no catch."""
+        if not self.in_text(entry): return []
+        off = entry - self.TVA; h = None
+        for x in list(self.md.disasm(self.TDATA[off:off+64], entry))[:10]:
+            if x.mnemonic == 'push' and x.operands and x.operands[0].type == X86_OP_IMM and self.in_text(x.operands[0].imm):
+                h = x.operands[0].imm
+            if x.mnemonic == 'mov' and 'fs:[0]' in x.op_str: break
+        else: return []
+        if h is None: return []
+        hb = self.TDATA[h - self.TVA:h - self.TVA + 64]; fi = None
+        for k in range(len(hb) - 9):
+            if hb[k] == 0xB8 and hb[k + 5] == 0xE9:
+                v = struct.unpack_from('<I', hb, k + 1)[0]; mg = self.rd32img(v)
+                if mg is not None and (mg & ~3) == 0x19930520: fi = v; break
+        if fi is None: return []
+        ntry, tmap = self.rd32img(fi + 12), self.rd32img(fi + 16)
+        funclets = []
+        for t in range(min(ntry or 0, 256)):
+            nc, harr = self.rd32img(tmap + 20*t + 12), self.rd32img(tmap + 20*t + 16)
+            for c in range(min(nc or 0, 64)): funclets.append(self.rd32img(harr + 16*c + 12))
+        conts = set(); jt = getattr(self, 'jtab', {})
+        for f in funclets:
+            if not f or not self.in_text(f): continue
+            bl, _ = self.discover(f)
+            for ins in bl.values():
+                for a, b in zip(ins, ins[1:]):
+                    if b.mnemonic == 'ret' and a.mnemonic == 'mov' and a.op_str.startswith('eax, 0x'):
+                        t = int(a.op_str.split(', ')[1], 16)
+                        if self.in_text(t): conts.add(t)
+        self.jtab = jt
+        return sorted(conts)
+    @staticmethod
+    def is_fs0_write(i):
+        if i.mnemonic != 'mov' or len(i.operands) != 2: return False
+        o = i.operands[0]
+        return o.type == X86_OP_MEM and o.mem.segment == X86_REG_FS and o.mem.base == 0 and o.mem.index == 0 and o.mem.disp == 0
 
     # ---------- single instruction -> C ----------
     def _fm(self):
@@ -1844,7 +1893,8 @@ class Lifter:
 
     # ---------- function -> C ----------
     def lift(self, entry):
-        blocks, calls = self.discover(entry)
+        conts = self.eh_conts(entry)
+        blocks, calls = self.discover(entry, extra=conts)
         self.last_blocks = blocks
         addrs = sorted(blocks)
         # Flag liveness: for every instruction the mask "which flags are read
@@ -1953,6 +2003,16 @@ class Lifter:
                             body += ["    "+l for l in xb.close()]
                     for line in lines:
                         body.append("    "+line)
+                    if conts and self.is_fs0_write(i):
+                        inst = 1 if k > 0 and ins[k-1].mnemonic == 'lea' else 0
+                        body.append(f"    EH_SEH(c, {inst});")
+                        if inst:
+                            body.append("    if (eh_resume_take()) switch (c->eip) {")
+                            # the jump-table shape (conditional goto, break): tools/lregs.py
+                            # must see the code after the switch as reached from here
+                            for t in conts: body.append(f"    case 0x{t:x}u: if (c->eip == 0x{t:x}u) goto L_{t:08x}; break;")
+                            body.append(f'    default: unsupported_insn(c, 0x{i.address:x}u, "eh-resume"); break;')
+                            body.append("    }")
                 except Unsupported as e:
                     if not self.trap: raise
                     self.traps+=1; self.trap_kinds[str(e)]+=1

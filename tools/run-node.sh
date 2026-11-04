@@ -14,6 +14,6 @@ mkdir -p out/node-save
 export WASI_PREOPEN="/data=$W,/save=$ROOT/out/node-save" WASI_PAGES=$((1280 * 16))
 export WC3_NOTHREAD=1 WC3_SAVEDIR=/save WC3_READONLY_DATA=1
 for kv in "$@"; do export "$kv"; done
-timeout "${TIMEOUT:-120}" node --no-warnings --stack-size=8000 web/tools/wasi-run.mjs out/web/wc3.wasm /data/CMR5.EXE \
+timeout "${TIMEOUT:-120}" node --no-warnings --stack-size=8000 web/tools/wasi-run.mjs out/web/wc3.wasm /data/bulanci.exe \
   2>&1 | tee out/node-run.log | grep -E --line-buffered "^\[module\]|^\[dll\]|^\[trap\]|UNRESOLVED|FAULT|exited|returned|NOT IMPLEMENTED|^win32:|^dispatch:|error" | head -${LINES_MAX:-200}
 echo "--- exit ${PIPESTATUS[0]}; full log: out/node-run.log ($(wc -l < out/node-run.log) lines)"

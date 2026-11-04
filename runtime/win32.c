@@ -416,11 +416,16 @@ int win32_call(CPU *c, uint32_t idx){
     int handled = 1;
     const char *n = e->name;
     uint32_t r = 0;
+    /* a Unicode game's W calls on the A ones (w2a.c) */
+    const char *w2a_pre(CPU *, const char *, void *, uint32_t *, int *); uint32_t w2a_post(CPU *, void *, uint32_t);
+    uint64_t w2ax[16]; int w2a_hit = 0; uint32_t w2a_r = 0;
+    const char *w2a_n = w2a_pre(c, n, w2ax, &w2a_r, &w2a_hit);
+    if (w2a_n) n = w2a_n;
 
     /* QueryPerformanceCounter is the most frequent call (frame limiter); to
      * skip the name chain's ~20 strcmps the import index is cached on the
      * first match. */
-    if (0) ;
+    if (w2a_hit) r = w2a_r;
     else if (n[0] == 'Q' && !strcmp(n,"QueryPerformanceCounter")){
         if (ENVC("QPCWHO")) qpc_who(c);
         uint64_t v = host_qpc(); uint32_t p=ARG(c,0);
@@ -766,6 +771,7 @@ int win32_call(CPU *c, uint32_t idx){
             fprintf(stderr, "[thread] named \"%.40s\"\n", nm && mem_is_committed(nm) ? (const char *)(g_mem + nm) : "?"); }
         r = 0; }
     else if (!strcmp(n,"RaiseException")){
+        { void eh_cxx_throw(CPU *); if (ARG(c,0) == 0xE06D7363u) eh_cxx_throw(c); }   /* longjmps when caught */
         /* There is no guest SEH dispatch, so continuing after a raise is
          * undefined behaviour.  Stop loudly instead; NFSU2_RAISE=continue
          * (test-only) restores the old silent return. */
@@ -786,6 +792,7 @@ int win32_call(CPU *c, uint32_t idx){
 
            if (unimpl_first==0xffffffffu){ unimpl_first=idx; unimpl_name=n; } }
 
+    if (w2a_n) r = w2a_post(c, w2ax, r);
     if (g_bt_on && (!strcmp(n,"GetModuleFileNameA")||!strcmp(n,"ExitProcess")||!strcmp(n,"RaiseException")||!strcmp(n,"MessageBoxA")))
         guest_backtrace(c, 14);
     if (trace_n < trace_max)
@@ -812,7 +819,7 @@ void win32_init(void){
     g_hk_heapalloc = heap_api_kind("HeapAlloc");
     struct timespec ts; clock_gettime(CLOCK_MONOTONIC,&ts);
     tick0 = (uint64_t)ts.tv_sec*1000 + ts.tv_nsec/1000000;
-    { const char *cl = getenv("WC3_CMDLINE"); if (!cl || !*cl) cl = "\"C:\\Program Files\\Codemasters\\Colin McRae Rally 2005\\CMR5.EXE\" NOVIDEO";
+    { const char *cl = getenv("WC3_CMDLINE"); if (!cl || !*cl) cl = "\"C:\\Bulanci\\bulanci.exe\"";
       g_cmdline = gheap_alloc(1, (uint32_t)strlen(cl) + 1, 1);
       strcpy((char*)(g_mem+g_cmdline), cl);
       fprintf(stderr, "win32: command line: %s\n", cl); }
