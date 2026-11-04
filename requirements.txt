@@ -1,0 +1,9 @@
+# Lifter + analysis tools (tools/*.py)
+# capstone pinned to 5.x: the lifter is written against 5.x's mnemonic/operand/
+# eflags format; byte-identical regeneration of its output was checked with 5.0.9.
+capstone>=5.0.6,<6
+pefile>=2023.2.7
+
+# Only for tools/exeicon.py (pack.sh's app icon) and tools/contact_sheet.py
+# (the test runs' contact sheets)
+Pillow>=10

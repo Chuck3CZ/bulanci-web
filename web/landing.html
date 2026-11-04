@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Colin McRae Rally 2005</title>
+<style>
+  :root { --bg: #0d0f14; --panel: #171b24; --text: #e8e6df; --muted: #9a9890; --accent: #d9a441; --line: #2a3040; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 16px; }
+  main { width: 100%; max-width: 440px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 28px; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  p { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+  label { display: block; font-size: 14px; margin-bottom: 6px; }
+  input { width: 100%; padding: 10px 12px; font-size: 16px; color: var(--text); background: var(--bg);
+          border: 1px solid var(--line); border-radius: 6px; }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button { margin-top: 16px; width: 100%; padding: 11px; font-size: 16px; font-weight: 600; color: #1a1408;
+           background: var(--accent); border: 0; border-radius: 6px; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .note { margin-top: 18px; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Colin McRae Rally 2005</h1>
+  <p>České vydání v prohlížeči. Hráči se vidí v síťové hře (LAN).</p>
+  <form id="f">
+    <label for="name">Jméno hráče</label>
+    <input id="name" maxlength="15" autocomplete="nickname" required pattern="[A-Za-z0-9_\-]{2,15}"
+           title="2–15 znaků: písmena bez diakritiky, číslice, _ nebo -">
+    <button id="go">Hrát</button>
+  </form>
+  <div class="note">Potřebuje Chrome (nebo Edge) s WebGPU. Profily a uložené hry zůstávají v tomto prohlížeči.
+    Hra se stahuje průběžně (data mají 2,9 GB).</div>
+</main>
+<script>
+  const name = document.getElementById('name');
+  try { name.value = localStorage.getItem('cmr-name') || ''; } catch {}
+  document.getElementById('f').addEventListener('submit', e => {
+    e.preventDefault();
+    const n = name.value.trim();
+    if (!name.checkValidity()) return;
+    try { localStorage.setItem('cmr-name', n); } catch {}
+    const q = new URLSearchParams();
+    q.set('wasm', '/wc3.wasm'); q.set('pages', '20480'); q.set('arg', '/data/CMR5.EXE');
+    q.append('env', 'WC3_SAVEDIR=/save'); q.append('env', 'WC3_READONLY_DATA=1');
+    q.set('gpu', ''); q.set('net', n); q.set('save', 'cmr-' + n.toLowerCase());
+    location.href = '/test/hostcheck.html?' + q.toString();
+  });
+</script>
+</body>
+</html>

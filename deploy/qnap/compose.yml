@@ -1,0 +1,28 @@
+# CMR 2005 in the browser on the QNAP (trial).  In .env next to this file:
+#   WC3_GAME=/share/CACHEDEV1_DATA/wc3/game       the Warcraft III folder (war3.exe, game.dll, *.mpq, Maps, ...)
+#   WC3_MODULE=/share/CACHEDEV1_DATA/wc3/module   the folder with wc3.wasm
+#   WC3_LOGS=/share/CACHEDEV1_DATA/wc3/logs       the test pages' logs (browser.log, shot.png)
+#   WC3_PORT=8086                                 8080 is QTS's own
+#   TUNNEL_TOKEN=...                              only for the tunnel profile
+# then:  docker compose up -d --build            (and with HTTPS from Cloudflare: docker compose --profile tunnel up -d)
+services:
+  server:
+    build: .
+    image: cmr05-web-trial
+    restart: unless-stopped
+    ports: ["${WC3_PORT:-8087}:8086"]
+    volumes:
+      - ${WC3_GAME:?set WC3_GAME in .env}:/game:ro
+      - ${WC3_MODULE:?set WC3_MODULE in .env}:/module:ro
+      - ${WC3_LOGS:?set WC3_LOGS in .env}:/logs
+    logging: { driver: json-file, options: { max-size: 10m, max-file: "3" } }
+  # HTTPS for the players (WebGPU and the game's threads need a secure page): a Cloudflare Tunnel, its public
+  # hostname's service http://server:8086 (Cloudflare Zero Trust, Networks, Tunnels)
+  cloudflared:
+    profiles: [tunnel]
+    image: cloudflare/cloudflared:2026.9.3
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on: [server]

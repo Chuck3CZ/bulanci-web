@@ -1,0 +1,46 @@
+# NOTHING from the game ever goes in this repo (Codemasters copyrighted code and data):
+# the game folder and its binaries/archives, in any letter case,
+/colin/
+/CMR*/
+/data/
+/SG/
+/fonts/
+*.[bB][iI][gG]
+*.[wW][mM][vV]
+*.[tT][tT][fF]
+*.[iI][cC][oO]
+*.[eE][xX][eE]
+*.[dD][lL][lL]
+*.[mM][pP][qQ]
+*.[aA][sS][iI]
+*.[fF][lL][tT]
+*.[mM]3[dD]
+*.[aA][xX]
+*.[wW]3[mMxX]
+*.[wW]3[gGzZ]
+*.[bB][iI][kK]
+*.[aA][vV][iI]
+# the C translated from the game (tools/lift.py, tools/genall.py) and everything compiled from it,
+/gen/
+/out/
+*.wasm
+*.wat
+# analysis outputs (derived from the binaries)
+survey.json
+apidiff.json
+
+# Tools and build output
+/.venv
+/deps
+node_modules
+/web/dist/
+/web/dist-dev/
+__pycache__/
+*.pyc
+*.o
+*.a
+*.log
+.DS_Store
+
+# the NAS deployment settings (tunnel token)
+deploy/qnap/.env
