@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bulánci – ovládání</title>
+<style>
+  :root { --bg: #0d0f14; --panel: #171b24; --text: #e8e6df; --muted: #9a9890; --accent: #d9a441; --line: #2a3040;
+          --term: #07080b; --warn: #e0b050; --err: #ef6b5b; --net: #6fb7e8; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+         display: flex; flex-direction: column; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 12px; background: var(--panel);
+           border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0 6px 0 0; font-size: 16px; }
+  label { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; color: var(--text); }
+  input[type=text] { width: 120px; padding: 4px 6px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; }
+  select { padding: 3px 4px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; }
+  button { padding: 5px 12px; font-weight: 600; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--text); cursor: pointer; }
+  button.go { background: var(--accent); color: #1a1408; border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  .sep { width: 1px; align-self: stretch; background: var(--line); }
+  .grow { flex: 1; }
+  #status { color: var(--muted); font-size: 13px; }
+  #split { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #game { flex: 0 0 auto; height: 62%; min-height: 120px; display: flex; justify-content: center; background: #000; }
+  #game iframe { border: 0; width: 100%; height: 100%; }
+  #game .empty { align-self: center; color: var(--muted); }
+  #bar { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 5px 12px; background: var(--panel);
+         border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); cursor: ns-resize; user-select: none; }
+  #bar * { cursor: auto; }
+  #filter { width: 200px; }
+  #term { flex: 1; min-height: 60px; margin: 0; padding: 8px 12px; overflow: auto; background: var(--term);
+          font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
+  #term .w { color: var(--warn); } #term .e { color: var(--err); } #term .n { color: var(--net); }
+  #count { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bulánci – ovládání</h1>
+  <label>Jméno <input id="name" type="text" maxlength="15" value="hrac"></label>
+  <span class="sep"></span>
+  <label title="NFSU2_BACKGROUND=run: hra běží dál i ve skryté záložce nebo okně"><input type="checkbox" id="bg" checked> Běh na pozadí</label>
+  <label title="VERBOSE=1: podrobné logy runtime (COM, okna, soubory)"><input type="checkbox" id="verbose"> Verbose</label>
+  <label title="DPLOG=1: DirectPlay a síťová hra (první zprávy obou směrů)"><input type="checkbox" id="dplog" checked> Síť (DPLOG)</label>
+  <label title="EHLOG=1: každá výjimka C++ hry s výpisem zásobníku"><input type="checkbox" id="ehlog"> Výjimky (EHLOG)</label>
+  <label title="Log se posílá i na server (logs/browser.log na NASu)"><input type="checkbox" id="post"> Log na server</label>
+  <label>Další env <input id="extra" type="text" placeholder="K=V K2=V2" style="width:150px"></label>
+  <span class="sep"></span>
+  <button class="go" id="start">Spustit</button>
+  <button id="stop" disabled>Zastavit</button>
+  <button id="fs" disabled>Celá obrazovka</button>
+  <span class="grow"></span>
+  <span id="status">neběží</span>
+</header>
+<div id="split">
+  <div id="game"><span class="empty">Nastav přepínače a dej Spustit. Do hry klikni, ať dostane klávesnici.</span></div>
+  <div id="bar" title="Táhnutím změníš výšku terminálu">
+    <strong>Terminál</strong>
+    <input id="filter" type="text" placeholder="filtr (text nebo /regex/)">
+    <label><input type="checkbox" id="follow" checked> Sledovat konec</label>
+    <label><input type="checkbox" id="pause"> Pozastavit</label>
+    <button id="clear">Vyčistit</button>
+    <button id="copy">Kopírovat</button>
+    <button id="save">Stáhnout log</button>
+    <span class="grow"></span>
+    <span id="count">0 řádků</span>
+  </div>
+  <pre id="term"></pre>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const OPTS = ['bg', 'verbose', 'dplog', 'ehlog', 'post', 'follow'];
+const MAX_LINES = 20000;
+let lines = [], frame = null, seen = 0, timer = 0, started = 0;
+
+// the switches survive a reload (per browser)
+try {
+  const s = JSON.parse(localStorage.getItem('bulanci-control') || '{}');
+  for (const k of OPTS) if (k in s) $(k).checked = !!s[k];
+  if (s.name) $('name').value = s.name;
+  if (s.extra) $('extra').value = s.extra;
+} catch {}
+function remember() {
+  const s = { name: $('name').value, extra: $('extra').value };
+  for (const k of OPTS) s[k] = $(k).checked;
+  try { localStorage.setItem('bulanci-control', JSON.stringify(s)); } catch {}
+}
+for (const k of [...OPTS, 'name', 'extra']) $(k).addEventListener('change', remember);
+
+function gameUrl() {
+  const q = new URLSearchParams();
+  q.set('wasm', '/wc3.wasm'); q.set('pages', '20480'); q.set('arg', '/data/bulanci.exe');
+  q.append('env', 'WC3_SAVEDIR=/save'); q.append('env', 'WC3_READONLY_DATA=1');
+  if ($('bg').checked) q.append('env', 'NFSU2_BACKGROUND=run');
+  if ($('verbose').checked) q.append('env', 'VERBOSE=1');
+  if ($('dplog').checked) q.append('env', 'DPLOG=1');
+  if ($('ehlog').checked) q.append('env', 'EHLOG=1');
+  for (const kv of $('extra').value.split(/\s+/)) if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(kv)) q.append('env', kv);
+  const n = ($('name').value.trim().replace(/[^A-Za-z0-9_-]/g, '') || 'hrac').slice(0, 15);
+  q.set('gpu', ''); q.set('res', '800x600'); q.set('net', n); q.set('save', 'bulanci-' + n.toLowerCase());
+  if ($('post').checked) q.set('logpost', '');
+  return '/test/hostcheck.html?' + q.toString();
+}
+
+function start() {
+  stop();
+  remember();
+  lines = []; seen = 0; render(true);
+  const f = document.createElement('iframe');
+  f.allow = 'fullscreen; gamepad; autoplay; clipboard-write';
+  f.src = gameUrl();
+  $('game').replaceChildren(f);
+  frame = f; started = Date.now();
+  add(`[ovládání] spuštěno: ${f.src}`);
+  timer = setInterval(pull, 250);
+  $('start').textContent = 'Restartovat'; $('stop').disabled = false; $('fs').disabled = false;
+  f.addEventListener('load', () => { try { f.contentWindow.focus(); } catch {} });
+}
+function stop() {
+  clearInterval(timer); timer = 0;
+  if (frame) { pull(); add('[ovládání] zastaveno'); frame.remove(); frame = null; }
+  $('game').innerHTML = '<span class="empty">Neběží.</span>';
+  $('start').textContent = 'Spustit'; $('stop').disabled = true; $('fs').disabled = true;
+  $('status').textContent = 'neběží';
+}
+
+// the game page writes its log into its <pre> (the same origin: read it from here)
+function pull() {
+  if (!frame) return;
+  let d; try { d = frame.contentDocument; } catch { return; }
+  const pre = d && d.querySelector('pre');
+  if (!pre) return;
+  const t = pre.textContent || '';
+  if (t.length < seen) seen = 0;                 // the page cleared it
+  if (t.length > seen) {
+    const chunk = t.slice(seen); seen = t.length;
+    const nl = chunk.lastIndexOf('\n');
+    if (nl < 0) { seen -= chunk.length; }        // a line still being written: next time
+    else { seen -= chunk.length - nl - 1; for (const s of chunk.slice(0, nl).split('\n')) add(s); }
+  }
+  const sec = Math.round((Date.now() - started) / 1000);
+  let iso = ''; try { iso = frame.contentWindow.crossOriginIsolated ? '' : ' · POZOR: stránka není izolovaná (chybí HTTPS?)'; } catch {}
+  $('status').textContent = `běží ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}${iso}`;
+}
+
+function add(s) {
+  lines.push(s);
+  if (lines.length > MAX_LINES) lines.splice(0, lines.length - MAX_LINES);
+  if (!$('pause').checked) pending = true;
+}
+let pending = false;
+function matcher() {
+  const f = $('filter').value.trim();
+  if (!f) return null;
+  const m = f.match(/^\/(.+)\/([a-z]*)$/);
+  if (m) { try { return new RegExp(m[1], m[2].includes('i') ? m[2] : m[2] + 'i'); } catch { return null; } }
+  const low = f.toLowerCase();
+  return { test: s => s.toLowerCase().includes(low) };
+}
+function cls(s) {
+  if (/\b(FAILED|FAULT|trap|TRAP|error|NOT IMPLEMENTED|UNRESOLVED)\b/.test(s)) return 'e';
+  if (/\[eh\] throw|WARNING|warning|skip/.test(s)) return 'w';
+  if (/\[dplay\]|\[net\]|virtual LAN/.test(s)) return 'n';
+  return '';
+}
+function render(force) {
+  if (!pending && !force) return;
+  pending = false;
+  const m = matcher(), term = $('term');
+  const show = m ? lines.filter(s => m.test(s)) : lines;
+  const tail = show.slice(-4000);                // the terminal draws the last 4000; the download has all
+  const frag = document.createDocumentFragment();
+  for (const s of tail) {
+    const c = cls(s);
+    if (c) { const sp = document.createElement('span'); sp.className = c; sp.textContent = s + '\n'; frag.append(sp); }
+    else frag.append(s + '\n');
+  }
+  term.replaceChildren(frag);
+  $('count').textContent = `${lines.length} řádků` + (m ? ` · ${show.length} odpovídá` : '');
+  if ($('follow').checked) term.scrollTop = term.scrollHeight;
+}
+setInterval(render, 300);
+$('filter').addEventListener('input', () => render(true));
+$('pause').addEventListener('change', () => render(true));
+
+$('start').onclick = start;
+$('stop').onclick = stop;
+$('fs').onclick = () => { try { frame.requestFullscreen({ navigationUI: 'hide' }); } catch {} };
+$('clear').onclick = () => { lines = []; render(true); };
+$('copy').onclick = () => navigator.clipboard?.writeText(lines.join('\n'));
+$('save').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n') + '\n'], { type: 'text/plain' }));
+  a.download = `bulanci-log-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+};
+
+// the bar between the game and the terminal moves
+$('bar').addEventListener('pointerdown', e => {
+  if (e.target !== $('bar') && e.target.tagName !== 'STRONG') return;
+  const split = $('split'), game = $('game'), top = split.getBoundingClientRect().top, h = split.clientHeight;
+  if (frame) frame.style.pointerEvents = 'none';
+  const move = ev => { game.style.height = Math.max(80, Math.min(h - 80, ev.clientY - top)) + 'px'; };
+  const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); if (frame) frame.style.pointerEvents = ''; };
+  addEventListener('pointermove', move); addEventListener('pointerup', up);
+});
+</script>
+</body>
+</html>

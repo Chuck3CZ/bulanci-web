@@ -70,6 +70,21 @@ static void str_arg(CPU *c, W2A *x, int i){ swap_arg(c, x, i, w2a_str(ARG(c, i))
 /* served here: the W calls with no A twin in the runtime */
 static int w2a_direct(CPU *c, const char *n, uint32_t *r){
     if (!strcmp(n, "lstrlenW")){ *r = ARG(c,0) ? wlen(ARG(c,0)) : 0; return 1; }
+    /* lstrlenA was missing and returned 0: the game's ANSI -> UTF-16 string (sub_00401290: lstrlenA, then
+     * MultiByteToWideChar of len+1) kept one character, so a joining client's level GUIDs matched none
+     * of the host's and the host refused it */
+    if (!strcmp(n, "lstrlenA")){ uint32_t p = ARG(c,0), k = 0; if (p) while (MR8(p + k)) k++; *r = k; return 1; }
+    /* the rest of the game's imports the runtime had no answer for */
+    if (!strcmp(n, "LockFile") || !strcmp(n, "UnlockFile") || !strcmp(n, "SetStdHandle")){ *r = 1; return 1; }
+    if (!strcmp(n, "GetThreadLocale")){ *r = 0x0405; return 1; }                 /* cs-CZ */
+    if (!strcmp(n, "GetConsoleCP") || !strcmp(n, "GetConsoleOutputCP")){ *r = 852; return 1; }
+    if (!strcmp(n, "GetConsoleMode")){ *r = 0; return 1; }                       /* no console */
+    if (!strcmp(n, "WriteConsoleA")){
+        uint32_t b = ARG(c,1), len = ARG(c,2), pw = ARG(c,3);
+        if (b && len) fwrite(g_mem + b, 1, len, stderr);
+        if (pw) MR32(pw) = len;
+        *r = 1; return 1; }
+    if (!strcmp(n, "GetStockObject")){ *r = 0x01900000u | (ARG(c,0) & 0xFFu); return 1; }   /* a handle nobody draws with */
     if (!strcmp(n, "GetTempPathW") || !strcmp(n, "GetTempPathA")){
         /* the game folder: it must exist (the game checks), and writes there
          * go to the save overlay (fileio.c) */

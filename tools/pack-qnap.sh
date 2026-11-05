@@ -11,7 +11,7 @@ rm -rf "$B" out/qnap/module; mkdir -p "$B/app/web/tools" out/qnap/module
 cp deploy/qnap/Dockerfile deploy/qnap/compose.yml deploy/qnap/README.md "$B/"
 [ -f deploy/qnap/.env ] && cp deploy/qnap/.env "$B/" || cp deploy/qnap/env.example "$B/.env"
 cp web/tools/wc3-dev-server.mjs "$B/app/web/tools/"
-cp web/landing.html "$B/app/web/"
+cp web/landing.html web/control.html "$B/app/web/"
 cp -r web/dist web/dist-dev "$B/app/web/"
 cp out/web/wc3.wasm out/qnap/module/
 echo "rev $(git rev-parse --short HEAD)$(git diff --quiet || echo +)" > "$B/REVISION"

@@ -8,6 +8,7 @@
 //   /data-manifest                       every file of the game folder (the I/O worker's
 //                                        manifest without "blocks": it reads byte ranges)
 //   /data/<path>                         the game folder's files, with Range
+//   /ovladani                            the control page (web/control.html): game, live log, switches
 //   POST /log                            the test page's log -> out/browser.log
 //   POST /shot                           the test page's screenshot -> out/shot.png
 //   WS   /lan                            a minimal virtual LAN switch (web/server-rs crates/lan's protocol, no limits)
@@ -157,6 +158,8 @@ const server = http.createServer((req, res) => {
   if (p === '/data-manifest') { res.writeHead(200, { ...ISOLATION, 'Content-Type': 'application/json' }).end(MANIFEST); return; }
   if (p.startsWith('/data/')) { const f = inside(DATA, p.slice(6)); return f ? sendFile(req, res, f) : res.writeHead(403, ISOLATION).end(); }
   if (p === '/wc3.wasm') return sendFile(req, res, WASM);
+  // the control page: the game in a frame, its log in a terminal, the debug switches (web/control.html)
+  if (p === '/ovladani' || p === '/control') return sendFile(req, res, path.join(ROOT, 'web', 'control.html'));
   // the start page: a name, then the game (web/landing.html); without it the test page
   if (p === '/') {
     const land = path.join(ROOT, 'web', 'landing.html');
