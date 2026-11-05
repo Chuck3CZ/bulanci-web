@@ -107,8 +107,10 @@ const char *w2a_pre(CPU *c, const char *n, void *xv, uint32_t *direct_r, int *di
     W2A *x = xv; _Static_assert(sizeof(W2A) <= 128, "w2a ctx");
     memset(x, 0, sizeof *x); *direct = 0;
     size_t l = strlen(n);
-    if (l < 2 || n[l-1] != 'W') return 0;
+    if (l < 2) return 0;
+    /* the A and plain names served here too (lstrlenA, LockFile, ...): they never came here before */
     if (w2a_direct(c, n, direct_r)){ *direct = 1; return 0; }
+    if (n[l-1] != 'W') return 0;
     static char an[64];
     if (l >= sizeof an) return 0;
     memcpy(an, n, l - 1); an[l-1] = 'A'; an[l] = 0;
