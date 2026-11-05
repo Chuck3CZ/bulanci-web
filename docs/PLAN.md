@@ -22,8 +22,8 @@ přes `CoCreateInstance`, registr `HKCU\Software\SleepTeam\Bulanci`. Řízení c
 | DirectSound přes `CoCreateInstance`, `DirectInputCreateW` | napojeno na com.c |
 | hlavní menu a nastavení hry v Chrome | **funguje** |
 | start kola („Start“ v nastavení hry) | **opraveno** (2026-11-05) – chyba nevyskočí, zbytek kola ověřit hraním |
-| DirectPlay 4A (`runtime/dplay.c`, lokální session) | napsáno, **neověřeno** – hra na jednom PC ho nevolá |
-| síťová hra (Připojit se, hráči na více PC) | – |
+| DirectPlay 4A (`runtime/dplay.c`) | lokální session + virtuální LAN |
+| síťová hra (Připojit se, hráči na více PC) | **rozpracováno** – hledání a připojení jde, hostitel odmítne (viz níže) |
 | ukládání registru, stránka pro hráče, Docker/QNAP | – |
 
 **Start kola – příčina (2026-11-05):** `DirectInputCreateW` měl v `gen/exe/impargs.c` počet argumentů 0 (Wine
@@ -34,9 +34,29 @@ nenulové a zpráva šla „do fronty“ v odpadcích: jednou přetečení strea
 argumentů DirectX vstupů (dinput, ddraw, dplayx) ručně v `tools/argcount.py` (`KNOWN`). Žádný import Bulánků už
 není odhadnutý. Ladění: `HOOKS=<adr,...> ./gen.sh` + `env=WC3_HOOKDUMP=esi+0x1dc` vypíše registry na adresách.
 
-**Další krok:** zahrát celé kolo (pohyb, střelba, konec kola, statistiky) a sepsat, co nejde. Potom síťová hra:
-`dplay.c` má jen lokální session (EnumSessions nic nenajde, Open(JOIN) → `DPERR_NOSESSIONS`); hra po síti
-potřebuje přenos mezi prohlížeči (LAN vrstva runtime, `runtime/web/net_lan.c`).
+**Síťová hra – rozpracováno (2026-11-05, stav při přerušení):**
+
+`runtime/dplay.c` má DirectPlay nad virtuální LAN (jeden UDP socket, port 47624, přes `vlan_*` z `net_lan.c`;
+`winsock_dplay_up()` v `winsock.c` zapne LAN, protože hra sama `WSAStartup` nevolá). Protokol: ENUMREQ/ENUMREP
+(hledání), JOIN/JOINACK, PADD/PDEL (hráči), DATA (zprávy, i po kusech), LEAVE. Hra ze systémových zpráv čte jen
+DESTROYPLAYER, SESSIONLOST a HOST (`sub_00415290`), připojování si dělá vlastními zprávami (typ 0 žádost,
+typ 1 odpověď).
+
+Ověřeno ve dvou záložkách (stránka s `?net=<jméno>`): hledání najde hru, `Open(JOIN)`, `CreatePlayer`, zprávy
+tečou oběma směry. **Hostitel ale klienta odmítne** (odpověď typ 1, první ID hráče 0, důvod 2 = žádný společný
+level). Příčina nalezena, neopravena: žádost klienta nese 6 GUID levelů jako ANSI řetězce po 36 B (od offsetu
+0x2a), hostitel je převádí na CStringW přes `sub_00401d00` → `sub_00401290(str, [0x4afbfc]())` a z
+`"987EF758-…"` vznikne jen `"9"` (hook na `0x41549e`, `WC3_HOOKDUMP=ecx+0,eax+0`). Hostitelův seznam je
+správně (6 GUID v UTF-16). Chyba je tedy v převodu ANSI → UTF-16 (nejspíš naše HLE `MultiByteToWideChar` nebo
+to, co vrací `[0x4afbfc]`), ne v síti.
+
+**Další krok:** zjistit, co je `[0x4afbfc]` a co `sub_00401290` volá, opravit převod, pak znovu: hostitel
+Vytvořit → 2 hráči / 1 na PC → Dále → **Start** (až pak má vybrané levely) → klient Připojit se → 1 hráč na PC
+→ Dále → OK (prázdné = hledat) → vybrat hru → Připojit. Pozor: `gen/` je teď liftnutý s ladicími hooky
+(`HOOKS=41549e,415480`), před nasazením `./gen.sh` bez `HOOKS` a `./build.sh`. Rizika: UDP přes switch se může
+ztratit při plné frontě; `Open(JOIN)` čeká až 5 s s drženým zámkem hosta.
+
+Pak: zahrát celé kolo na jednom PC i po síti a sepsat, co nejde.
 
 ## Ladění
 

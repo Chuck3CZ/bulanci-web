@@ -647,6 +647,22 @@ static int vlan_up(void){
            g_ws_id.mac[3], g_ws_id.mac[4], g_ws_id.mac[5]);
     return 0;
 }
+/* dplay.c: DirectPlay's sockets on the virtual LAN (a game that has no Winsock
+ * import of its own, so no WSAStartup brings the network up); 0 and the own
+ * address (network order), or a WSA error */
+static int g_startups;                    /* WSAStartup reference count (defined below) */
+int winsock_dplay_up(uint32_t *ip){
+    static int counted;
+    ws_config();
+    if (g_ws_mode != NET_VLAN) return WSAENETDOWN;
+    int e = vlan_up();
+    if (e) return e;
+    /* DirectPlay holds a network session for the rest of the run, as a
+     * WSAStartup would: the page keeps its place (and address) on the switch */
+    if (!counted){ counted = 1; g_startups++; }
+    *ip = g_ws_id.ip;
+    return 0;
+}
 
 /* Which local address would be used to reach `dst` (SIO_ROUTING_INTERFACE_QUERY). */
 static int route_query(uint32_t dst, uint32_t *out){
