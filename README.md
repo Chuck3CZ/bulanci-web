@@ -10,7 +10,8 @@ Built on [cmr05-web](https://github.com/Chuck3CZ/cmr05-web) (same lifter and run
 > Not affiliated with or endorsed by SleepTeam Labs. This repository contains none of the game's code or data: no
 > EXE, no C translated from it, no compiled module (`.gitignore` keeps them out).
 
-**Status:** the main menu and the game setup run in Chrome; starting a round does not work yet. The plan and the
+**Status:** the main menu, the game setup and the start of a one-machine round run in Chrome; a whole round is
+not checked yet and network play does not work yet. The plan and the
 state are in [docs/PLAN.md](docs/PLAN.md).
 
 ## What you need

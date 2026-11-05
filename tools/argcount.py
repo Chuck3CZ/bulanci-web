@@ -185,6 +185,12 @@ KNOWN={
  'setsockopt':5,'getsockopt':5,'htons':1,'ntohs':1,'htonl':1,'ntohl':1,'inet_addr':1,
  'inet_ntoa':1,'gethostbyname':1,'gethostname':2,'WSAGetLastError':0,'getsockname':3,
  'GetFileTime':4,
+ # DirectX entry points (Wine's .spec table has no dinput/ddraw/dplayx): a wrong count here
+ # leaves the arguments on the stack, and the caller's pop edi/esi/ebx then read them
+ # (Bulanci: DirectInputCreateW guessed 0, the round start sent a message through garbage)
+ 'DirectInputCreateA':4,'DirectInputCreateW':4,'DirectInputCreateEx':5,'DirectInput8Create':5,
+ 'DirectDrawCreate':3,'DirectDrawCreateEx':4,'DirectDrawEnumerateA':2,'DirectDrawEnumerateW':2,
+ 'DirectPlayCreate':3,'DirectPlayLobbyCreateA':5,
 }
 # tools/winapi_nargs.txt (tools/winapi_args.py, from Wine's .spec files): the
 # real stdcall counts of the system DLLs.  Order: KNOWN (checked by hand),

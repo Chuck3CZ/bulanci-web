@@ -21,18 +21,27 @@ přes `CoCreateInstance`, registr `HKCU\Software\SleepTeam\Bulanci`. Řízení c
 | DirectDraw 1 (`runtime/ddraw.c`) | **hotovo** – 800×600×32, Blt/BltFast, color key, Lock, Flip |
 | DirectSound přes `CoCreateInstance`, `DirectInputCreateW` | napojeno na com.c |
 | hlavní menu a nastavení hry v Chrome | **funguje** |
-| start kola („Hrát“) | **nefunguje** – viz níže |
-| DirectPlay 4A, síťová hra | – |
+| start kola („Start“ v nastavení hry) | **opraveno** (2026-11-05) – chyba nevyskočí, zbytek kola ověřit hraním |
+| DirectPlay 4A (`runtime/dplay.c`, lokální session) | napsáno, **neověřeno** – hra na jednom PC ho nevolá |
+| síťová hra (Připojit se, hráči na více PC) | – |
 | ukládání registru, stránka pro hráče, Docker/QNAP | – |
 
-**Další krok:** po „Hrát“ hra hlásí „Došlo k přetečení dat v zásobníku nebo ve frontě“ – `CDSSimpleException`
-z `sub_0043c450` (zápis do paměťového streamu s pevnou kapacitou, volá `sub_0043b680`). Podezření: hra i pro hru na
-jednom počítači používá síťovou vrstvu (`CDSDirectPlay`) a `CoCreateInstance(CLSID_DirectPlay)` vrací
-`REGDB_E_CLASSNOTREG`. Ověřit (kdo plní stream, `EHLOG=1`), pak `IDirectPlay4A` s lokální session.
+**Start kola – příčina (2026-11-05):** `DirectInputCreateW` měl v `gen/exe/impargs.c` počet argumentů 0 (Wine
+`.spec` tabulka nezná dinput, odhad z pushů se netrefil), správně 4. HLE tedy nechalo 16 B argumentů na zásobníku
+a `pop edi/esi/ebx` v konstruktoru klávesnice `sub_004121d0` (volaný ze startu kola `sub_00413ce0`) načetly
+argumenty místo uložených registrů. `esi` pak neukazoval na herní objekt, pole síťového objektu (`+0x1dc`) bylo
+nenulové a zpráva šla „do fronty“ v odpadcích: jednou přetečení streamu, jindy alokace 1 GB. Oprava: počty
+argumentů DirectX vstupů (dinput, ddraw, dplayx) ručně v `tools/argcount.py` (`KNOWN`). Žádný import Bulánků už
+není odhadnutý. Ladění: `HOOKS=<adr,...> ./gen.sh` + `env=WC3_HOOKDUMP=esi+0x1dc` vypíše registry na adresách.
+
+**Další krok:** zahrát celé kolo (pohyb, střelba, konec kola, statistiky) a sepsat, co nejde. Potom síťová hra:
+`dplay.c` má jen lokální session (EnumSessions nic nenajde, Open(JOIN) → `DPERR_NOSESSIONS`); hra po síti
+potřebuje přenos mezi prohlížeči (LAN vrstva runtime, `runtime/web/net_lan.c`).
 
 ## Ladění
 
 - `EHLOG=1` – každý throw s backtrace, catch, unwind, pokračování.
 - `DDLOG=1` / `DDLOG=2` – volání DirectDraw (2: i Blt/BltFast/Lock/Unlock).
+- `DPLOG=1` – volání DirectPlay (`dplay.c`); `DPLOG=2` i prázdné `Receive`.
 - `REGLOG=1` – registr; `TRACE_MAX=N` (run-node) – každé volání importu.
 - Testovací stránka: parametr `env=K=V` předá proměnnou prostředí, `gpu` zapne WebGPU renderer.
