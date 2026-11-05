@@ -71,8 +71,9 @@ static void str_arg(CPU *c, W2A *x, int i){ swap_arg(c, x, i, w2a_str(ARG(c, i))
 static int w2a_direct(CPU *c, const char *n, uint32_t *r){
     if (!strcmp(n, "lstrlenW")){ *r = ARG(c,0) ? wlen(ARG(c,0)) : 0; return 1; }
     if (!strcmp(n, "GetTempPathW") || !strcmp(n, "GetTempPathA")){
-        /* the save folder's temp, as a Windows path */
-        const char *t = "C:\\Temp\\"; uint32_t cap = ARG(c,0), b = ARG(c,1), l = (uint32_t)strlen(t);
+        /* the game folder: it must exist (the game checks), and writes there
+         * go to the save overlay (fileio.c) */
+        char t[300]; snprintf(t, sizeof t, "%s\\", fileio_game_dir()); uint32_t cap = ARG(c,0), b = ARG(c,1), l = (uint32_t)strlen(t);
         if (cap <= l){ *r = l + 1; return 1; }
         for (uint32_t i = 0; i <= l; i++){ if (n[11] == 'W') MR16(b + 2*i) = (uint8_t)t[i]; else MR8(b + i) = (uint8_t)t[i]; }
         *r = l; return 1; }

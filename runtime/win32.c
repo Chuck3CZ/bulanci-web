@@ -422,6 +422,7 @@ int win32_call(CPU *c, uint32_t idx){
     uint64_t w2ax[16]; int w2a_hit = 0; uint32_t w2a_r = 0;
     const char *w2a_n = w2a_pre(c, n, w2ax, &w2a_r, &w2a_hit);
     if (w2a_n) n = w2a_n;
+    if (n[0] == 'P' && !strncmp(n, "PeekMessage", 11)){ void ddraw_flush(void); ddraw_flush(); }
 
     /* QueryPerformanceCounter is the most frequent call (frame limiter); to
      * skip the name chain's ~20 strcmps the import index is cached on the

@@ -28,6 +28,7 @@ void dispatch_indirect(CPU *c, uint32_t target);
 typedef struct { uint32_t rec; jmp_buf jb; } EhEnt;
 static __thread EhEnt *g_eh;
 static __thread int g_eh_n, g_eh_resume;
+static __thread uint32_t g_cur_obj, g_cur_ti;     /* the exception a catch block is handling */
 
 static int ehlog(void){ static int on = -1; if (on < 0){ on = getenv("EHLOG") != 0; if (on) setvbuf(stderr, 0, _IONBF, 0); } return on; }
 
@@ -103,12 +104,17 @@ void eh_cxx_throw(CPU *c){
     uint32_t pa = MR32(c->esp + 12), na = MR32(c->esp + 8);      /* RaiseException(code, flags, n, args); the return address is popped */
     if (na < 3 || !ok(pa, 12)) return;
     uint32_t obj = MR32(pa + 4), ti = MR32(pa + 8);
-    if (!ti || !ok(ti, 16)) return;                               /* rethrow: not handled */
+    /* throw; in a catch block (cleanup, then pass it on): the exception
+     * being handled, searched for from the catching frame outwards (its
+     * state is below the try block by now) */
+    if (!ti){ obj = g_cur_obj; ti = g_cur_ti; if (ehlog()) fprintf(stderr, "[eh] rethrow\n"); }
+    if (!ti || !ok(ti, 16)) return;
+    g_cur_obj = obj; g_cur_ti = ti;
     uint32_t cta = MR32(ti + 12); if (!ok(cta, 4)) return;
     uint32_t nct = MR32(cta);
     if (ehlog()){ void guest_backtrace(CPU *, int);
         fprintf(stderr, "[eh] throw %s\n", nct && ok(MR32(cta + 4), 8) ? type_name(MR32(MR32(cta + 4) + 4)) : "?");
-        guest_backtrace(c, 6); }
+        guest_backtrace(c, ti == g_cur_ti && !MR32(pa + 8) ? 2 : 16); }
     for (uint32_t rec = MR32(c->fs_base); rec != 0xFFFFFFFFu && ok(rec, 12); rec = MR32(rec)){
         uint32_t fi = funcinfo_of(MR32(rec + 4));
         if (!fi) continue;                                        /* not a C++ frame (__try, CRT) */
@@ -126,10 +132,8 @@ void eh_cxx_throw(CPU *c){
                     /* the jmp_buf of the function this frame belongs to */
                     int e = g_eh_n - 1;
                     while (e >= 0 && g_eh[e].rec != rec) e--;
-                    if (e < 0){
-                        fprintf(stderr, "[eh] catch at frame 0x%08x but the function has no resume point\n", rec);
-                        return;
-                    }
+                    /* e < 0: a catch that only rethrows (tools/lift.py found no
+                     * continuation): its funclet never returns here */
                     uint32_t ebp = rec + 12u;
                     if (ehlog()) fprintf(stderr, "[eh] %s caught by frame 0x%08x (state %d, try %d..%d), catch 0x%08x\n",
                                          type_name(MR32(ct + 4)), rec, st, lo, hi, MR32(ht + 12));
@@ -161,6 +165,11 @@ void eh_cxx_throw(CPU *c){
                     if (dtor){ CPU save = *c; c->ecx = obj; c->esp -= 64; PUSH32(0xDEADBEEFu);
                                dispatch_indirect(c, dtor); *c = save; }
                     if (ehlog()) fprintf(stderr, "[eh]   continue at 0x%08x\n", cont);
+                    g_cur_ti = 0;
+                    if (e < 0){
+                        fprintf(stderr, "[eh] catch at frame 0x%08x (handler 0x%08x) returned 0x%08x, but the function has no resume point\n", rec, MR32(rec + 4), cont);
+                        return;
+                    }
                     c->ebp = ebp; c->esp = MR32(rec - 4); c->eip = cont;
                     MR32(c->fs_base) = rec;
                     g_eh_n = e + 1; g_eh_resume = 1;

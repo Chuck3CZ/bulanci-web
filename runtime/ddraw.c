@@ -69,6 +69,7 @@ static int g_primary;
 static unsigned g_tex, g_tex_w, g_tex_h, g_tex_f;
 static uint32_t *g_conv;
 static long g_frames;
+static int g_dirty;
 
 static int ddlog(void){ static int on = -1; if (on < 0) on = getenv("DDLOG") ? atoi(getenv("DDLOG")) : 0; return on; }
 
@@ -264,13 +265,13 @@ static uint32_t dd_method(CPU *c, int iface, unsigned m, const char *nm, uint32_
                    int key = (fl & 0x8000u) && g_s[sj].has_ck;                         /* DDBLT_KEYSRC */
                    if (fl & 0x10000u){ key = 1; g_s[sj].ck_lo = MR32(fx + 92); g_s[sj].ck_hi = MR32(fx + 96); }
                    blit(s, dr, &g_s[sj], sr, key); }
-            if (si == g_primary && !s->back) present(s);
+            if (si == g_primary && !s->back) g_dirty = 1;               /* shown at the game's next PeekMessage (ddraw_flush) */
             return 0; }
         case 7: {                                                    /* BltFast(x, y, src, srcRect, trans) */
             int sj = surf_of(AR(3)); Rect sr; if (!sj || !get_rect(AR(4), &g_s[sj], &sr)) return 0;
             Rect dr = { (int32_t)AR(1), (int32_t)AR(2), 0, 0 }; dr.r = dr.l + (sr.r - sr.l); dr.b = dr.t + (sr.b - sr.t);
             blit(s, dr, &g_s[sj], sr, (AR(5) & 1u) && g_s[sj].has_ck);
-            if (si == g_primary && !s->back) present(s);
+            if (si == g_primary && !s->back) g_dirty = 1;               /* shown at the game's next PeekMessage (ddraw_flush) */
             return 0; }
         case 11: {                                                   /* Flip: the back buffer's pixels become the front's */
             if (s->back){ Surf *b = &g_s[s->back]; uint32_t t = s->mem; s->mem = b->mem; b->mem = t; }
@@ -352,3 +353,6 @@ uint32_t ddraw_create(uint32_t pp){
     return 0;
 }
 long ddraw_frames(void){ return g_frames; }
+/* win32.c, at PeekMessage: a primary the game blitted onto since (in pieces:
+ * Bulanci blits its dirty rectangles) goes to the screen once */
+void ddraw_flush(void){ if (g_dirty && g_primary){ g_dirty = 0; present(&g_s[g_primary]); } }
