@@ -2396,6 +2396,7 @@ int d3d8_call(CPU *c, uint32_t iface, uint32_t m);   /* runtime/d3d8.c */
 int com_call(CPU *c, uint32_t magic){
     uint32_t iface=(magic>>16)&0x1FFFu, m=magic&0xFFFFu;
     { int ddraw_call(CPU *, uint32_t, uint32_t); if (iface >= 0x100u && iface < 0x104u) return ddraw_call(c, iface, m); }   /* DirectDraw: ddraw.c */
+    { int dplay_call(CPU *, uint32_t, uint32_t); if (iface >= 0x104u && iface < 0x106u) return dplay_call(c, iface, m); }   /* DirectPlay: dplay.c */
     if (iface >= IF_D3D8 && iface <= IF_SURF8) return d3d8_call(c, iface, m);
     g_com_calls++;
     g_com_cpu = c;

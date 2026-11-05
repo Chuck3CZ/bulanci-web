@@ -660,6 +660,7 @@ int win32_call(CPU *c, uint32_t idx){
     else if (!strcmp(n,"DirectInputCreateW") || !strcmp(n,"DirectInputCreateA")){
         /* IDirectInput(2/7) and its devices begin as IDirectInput8 and IDirectInputDevice8 do */
         uint32_t com_directinput8create(uint32_t); r = com_directinput8create(ARG(c,2)); }
+    else if (!strcmp(n,"CoCreateInstance") && ({ int dplay_cocreate(uint32_t, uint32_t, uint32_t *); dplay_cocreate(ARG(c,0), ARG(c,4), &r); })){ }   /* DirectPlay: dplay.c */
     else if (!strcmp(n,"CoCreateInstance")){ uint32_t pp = ARG(c,4); if (pp && mem_is_committed(pp)) MR32(pp) = 0; r = 0x80040154u; }   /* REGDB_E_CLASSNOTREG */
     else if (!strcmp(n,"CoInitialize") || !strcmp(n,"CoInitializeEx")) r = 0;
     else if (!strcmp(n,"CoUninitialize")) r = 0;
