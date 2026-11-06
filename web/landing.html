@@ -191,6 +191,7 @@
         </select>
         <p class="hint" data-t="touchhint"></p>
       </div>
+      <div id="sync" hidden><p class="hint" id="sy-line" aria-live="polite"></p></div>
       <details class="adv" id="adv">
         <summary data-t="adv"></summary>
         <label class="chk"><input type="checkbox" id="o-showlog"><span><span data-t="o_showlog"></span><small data-t="o_showlog_h"></small></span></label>
@@ -198,6 +199,10 @@
         <label class="chk"><input type="checkbox" id="o-noload"><span><span data-t="o_noload"></span><small data-t="o_noload_h"></small></span></label>
         <label class="chk"><input type="checkbox" id="o-bg"><span><span data-t="o_bg"></span><small data-t="o_bg_h"></small></span></label>
         <label class="chk"><input type="checkbox" id="o-nocache"><span><span data-t="o_nocache"></span><small data-t="o_nocache_h"></small></span></label>
+        <div class="cbox" id="sy-box" data-sync><span class="hint" data-t="sy_h"></span>
+          <button type="button" class="chip" id="sy-pull" data-t="sy_pull"></button> <button type="button" class="chip" id="sy-push" data-t="sy_push"></button>
+          <button type="button" class="chip" id="sy-exp" data-t="sy_exp"></button> <button type="button" class="chip" id="sy-imp" data-t="sy_imp"></button>
+          <input type="file" id="sy-file" accept=".zip,application/zip" hidden></div>
         <div class="cinfo" id="cache-info" aria-live="polite"></div>
         <div class="cbox"><button type="button" class="chip" id="cache-clear" data-t="cc_btn"></button></div>
       </details>
@@ -260,7 +265,7 @@
 <script>
 'use strict';
 const GAME = {
-  id: 'bulanci', storeKey: 'bulanci-name', savePrefix: 'bulanci-', wasm: '/wc3.wasm', exe: '/data/bulanci.exe', pages: 20480, touch: false, predownload: false,
+  id: 'bulanci', storeKey: 'bulanci-name', savePrefix: 'bulanci-', wasm: '/wc3.wasm', exe: '/data/bulanci.exe', pages: 20480, touch: false, predownload: false, sync: false,
   name: ['Bulánci v prohlížeči', 'Bulánci in the browser'],
   eyebrow: ['Fanouškovský projekt · WebAssembly + WebGPU', 'Fan project · WebAssembly + WebGPU'],
   titleParts: [['Bu', 'Bu'], ['lánci', 'lánci']],
@@ -292,7 +297,7 @@ const UI = {
     res: 'Rozlišení obrazu', resauto: 'Podle obrazovky (doporučeno)', reshint: 'Nižší rozlišení je méně náročné na grafiku.',
     touch: 'Dotykové ovládání', touchauto: 'Automaticky', touchon: 'Zapnout', touchoff: 'Vypnout', touchhint: 'Tlačítka přes hru pro telefon a tablet. Automaticky se zapnou jen na dotykovém zařízení.',
     adv: 'Pokročilé a ladění', o_showlog: 'Zobrazit log pod hrou', o_showlog_h: 'Běžně je skrytý.', o_logpost: 'Zapisovat log na server', o_logpost_h: 'Pro hlášení chyb: log si pak přečte provozovatel serveru.',
-    o_noload: 'Bez načítacího překryvu', o_noload_h: 'Stránka hry se spustí jako dřív, bez kroků načítání.', o_nocache: 'Neukládat modul do paměti prohlížeče', o_nocache_h: 'Modul se vždy stáhne znovu.', skipped: 'přeskočeno', o_bg: 'Nechat hru běžet i na skryté kartě', o_bg_h: 'Zkušební: dlouhé načítání se nezastaví, když přepneš jinam. Prohlížeč ale skryté kartě ubírá výkon.', cc_btn: 'Smazat uložený modul', cc_none: 'Nic není uloženo.', cc_has: 'Uloženo v prohlížeči:', cc_done: 'Smazáno. Příští start stáhne modul znovu. Uložené hry a profily zůstaly.', cc_fail: 'Smazání se nepovedlo.', cc_mod: 'Modul hry v paměti', cc_site: 'Úložiště stránky v prohlížeči', cc_of: 'z', cc_in: 'z toho', cc_caches: 'cache', cc_files: 'uložené hry a profily', cc_other: 'ostatní', cc_pers: 'Trvalé úložiště', cc_yes: 'ano', cc_no: 'ne: při nedostatku místa může prohlížeč cache smazat', cc_ver: 'verze', pre_h: 'Hra v tomto prohlížeči', pre_have: 'Staženo', pre_left: 'zbývá', pre_go: 'Stáhnout hru předem', pre_cont: 'Pokračovat ve stahování', pre_stop: 'Zastavit',
+    o_noload: 'Bez načítacího překryvu', o_noload_h: 'Stránka hry se spustí jako dřív, bez kroků načítání.', o_nocache: 'Neukládat modul do paměti prohlížeče', o_nocache_h: 'Modul se vždy stáhne znovu.', skipped: 'přeskočeno', o_bg: 'Nechat hru běžet i na skryté kartě', o_bg_h: 'Zkušební: dlouhé načítání se nezastaví, když přepneš jinam. Prohlížeč ale skryté kartě ubírá výkon.', sy_h: 'Postup hry (tvůj profil a uložené hry):', sy_pull: 'Stáhnout ze serveru', sy_push: 'Poslat na server', sy_exp: 'Uložit do souboru', sy_imp: 'Nahrát ze souboru', sy_have: 'V prohlížeči je postup, souborů:', sy_srv: 'na serveru z', sy_nolocal: 'V tomto prohlížeči zatím není žádný postup.', sy_noserver: 'Na serveru zatím není.', sy_pulled: 'Postup stažen ze serveru, souborů:', sy_pushed: 'Postup poslán na server, souborů:', sy_newer: 'Na serveru je novější postup (Stáhnout ze serveru).', sy_down: 'Server tyhle postupy neukládá.', sy_big: 'Postup je příliš velký (limit 16 MB).', sy_fail: 'Postup se nepovedlo přenést.', sy_need: 'Zadej nejdřív jméno hráče.', sy_saved: 'Uloženo do souboru, souborů:', sy_imported: 'Nahráno ze souboru, souborů:', cc_btn: 'Smazat uložený modul', cc_none: 'Nic není uloženo.', cc_has: 'Uloženo v prohlížeči:', cc_done: 'Smazáno. Příští start stáhne modul znovu. Uložené hry a profily zůstaly.', cc_fail: 'Smazání se nepovedlo.', cc_mod: 'Modul hry v paměti', cc_site: 'Úložiště stránky v prohlížeči', cc_of: 'z', cc_in: 'z toho', cc_caches: 'cache', cc_files: 'uložené hry a profily', cc_other: 'ostatní', cc_pers: 'Trvalé úložiště', cc_yes: 'ano', cc_no: 'ne: při nedostatku místa může prohlížeč cache smazat', cc_ver: 'verze', pre_h: 'Hra v tomto prohlížeči', pre_have: 'Staženo', pre_left: 'zbývá', pre_go: 'Stáhnout hru předem', pre_cont: 'Pokračovat ve stahování', pre_stop: 'Zastavit',
     pre_done: 'Hotovo: celá hra je v tomto prohlížeči a nečeká na síť.', pre_err: 'Stahování se zastavilo:', pre_note: 'Zbývá stáhnout {n} (bez videí). Stahování jde přerušit a později pokračovat.',
     play: 'Hrát', force: 'Spustit i přesto', envh: 'Tvůj prohlížeč', ctlh: 'Ovládání', ctlbtn: 'Zobrazit ovládání', close: 'Zavřít',
     stath: 'Stav projektu', needh: 'Co potřebuješ', loading: 'Připravuji hru', cancel: 'Zrušit', back: 'Zpět',
@@ -316,7 +321,7 @@ const UI = {
     res: 'Picture resolution', resauto: 'Match the screen (recommended)', reshint: 'A lower resolution is easier on the graphics card.',
     touch: 'Touch controls', touchauto: 'Automatic', touchon: 'On', touchoff: 'Off', touchhint: 'Buttons over the game for phones and tablets. Automatic turns them on only on a touch device.',
     adv: 'Advanced and debugging', o_showlog: 'Show the log under the game', o_showlog_h: 'Hidden by default.', o_logpost: 'Write the log to the server', o_logpost_h: 'For bug reports: the server operator then reads the log.',
-    o_noload: 'No loading overlay', o_noload_h: 'The game page starts as it used to, without the loading steps.', o_nocache: 'Do not keep the module in the browser', o_nocache_h: 'The module is always downloaded again.', skipped: 'skipped', o_bg: 'Keep the game running in a hidden tab', o_bg_h: 'Experimental: a long load does not stop when you switch away. The browser still slows a hidden tab.', cc_btn: 'Clear the stored module', cc_none: 'Nothing is stored.', cc_has: 'Stored in the browser:', cc_done: 'Cleared. The next start downloads the module again. Saved games and profiles stay.', cc_fail: 'Clearing failed.', cc_mod: 'Game module stored', cc_site: 'This page\'s storage in the browser', cc_of: 'of', cc_in: 'of that', cc_caches: 'cache', cc_files: 'saved games and profiles', cc_other: 'other', cc_pers: 'Persistent storage', cc_yes: 'yes', cc_no: 'no: the browser may clear the cache when space runs short', cc_ver: 'version', pre_h: 'Game in this browser', pre_have: 'Downloaded', pre_left: 'left', pre_go: 'Download the game ahead', pre_cont: 'Continue downloading', pre_stop: 'Stop',
+    o_noload: 'No loading overlay', o_noload_h: 'The game page starts as it used to, without the loading steps.', o_nocache: 'Do not keep the module in the browser', o_nocache_h: 'The module is always downloaded again.', skipped: 'skipped', o_bg: 'Keep the game running in a hidden tab', o_bg_h: 'Experimental: a long load does not stop when you switch away. The browser still slows a hidden tab.', sy_h: 'Game progress (your profile and saved games):', sy_pull: 'Download from the server', sy_push: 'Send to the server', sy_exp: 'Save to a file', sy_imp: 'Load from a file', sy_have: 'This browser has progress, files:', sy_srv: 'on the server from', sy_nolocal: 'No progress in this browser yet.', sy_noserver: 'Not on the server yet.', sy_pulled: 'Progress downloaded from the server, files:', sy_pushed: 'Progress sent to the server, files:', sy_newer: 'The server has newer progress (Download from the server).', sy_down: 'This server does not keep progress.', sy_big: 'The progress is too large (limit 16 MB).', sy_fail: 'The progress could not be transferred.', sy_need: 'Enter the player name first.', sy_saved: 'Saved to a file, files:', sy_imported: 'Loaded from a file, files:', cc_btn: 'Clear the stored module', cc_none: 'Nothing is stored.', cc_has: 'Stored in the browser:', cc_done: 'Cleared. The next start downloads the module again. Saved games and profiles stay.', cc_fail: 'Clearing failed.', cc_mod: 'Game module stored', cc_site: 'This page\'s storage in the browser', cc_of: 'of', cc_in: 'of that', cc_caches: 'cache', cc_files: 'saved games and profiles', cc_other: 'other', cc_pers: 'Persistent storage', cc_yes: 'yes', cc_no: 'no: the browser may clear the cache when space runs short', cc_ver: 'version', pre_h: 'Game in this browser', pre_have: 'Downloaded', pre_left: 'left', pre_go: 'Download the game ahead', pre_cont: 'Continue downloading', pre_stop: 'Stop',
     pre_done: 'Done: the whole game is in this browser and never waits on the network.', pre_err: 'The download stopped:', pre_note: '{n} left to download (without the videos). It can be stopped and continued later.',
     play: 'Play', force: 'Start anyway', envh: 'Your browser', ctlh: 'Controls', ctlbtn: 'Show controls', close: 'Close',
     stath: 'Project status', needh: 'What you need', loading: 'Getting the game ready', cancel: 'Cancel', back: 'Back',
@@ -680,6 +685,133 @@ $('#res').value = store.get(GAME.id + '-res') || '';
 $('#touch').value = store.get(GAME.id + '-touch') || '';
 try { const sv = JSON.parse(store.get(GAME.id + '-opts') || '{}'); for (const k of OPTS) $('#o-' + k).checked = !!sv[k]; } catch {}
 if (/[?&]debug/.test(location.search)) $('#adv').open = true;
+// ---- postup hráče: složka v prohlížeči (OPFS) <-> zip <-> server (/saves/<klíč>) ----
+const syKey = n => GAME.savePrefix + n.toLowerCase();
+const syName = () => { const n = name.value.trim(); return /^[A-Za-z0-9_-]{2,15}$/.test(n) ? n : ''; };
+const crcT = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = crcT[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipMake(entries) {                       // "stored" entries only, UTF-8 names
+  const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+  for (const e of entries) {
+    const nm = enc.encode(e.name), crc = crc32(e.data), len = e.data.length;
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x800, true); h.setUint16(12, 0x21, true);
+    h.setUint32(14, crc, true); h.setUint32(18, len, true); h.setUint32(22, len, true); h.setUint16(26, nm.length, true);
+    parts.push(new Uint8Array(h.buffer), nm, e.data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x800, true); c.setUint16(14, 0x21, true);
+    c.setUint32(16, crc, true); c.setUint32(20, len, true); c.setUint32(24, len, true); c.setUint16(28, nm.length, true); c.setUint32(42, off, true);
+    cen.push(new Uint8Array(c.buffer), nm);
+    off += 30 + nm.length + len;
+  }
+  const cs = cen.reduce((a, b) => a + b.length, 0), end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true);
+  end.setUint32(12, cs, true); end.setUint32(16, off, true);
+  return new Blob([...parts, ...cen, new Uint8Array(end.buffer)], { type: 'application/zip' });
+}
+async function zipRead(buf) {                     // stored and deflated entries
+  const u = new Uint8Array(buf), v = new DataView(buf); let e = u.length - 22;
+  while (e >= 0 && v.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error('zip');
+  const n = v.getUint16(e + 10, true); let p = v.getUint32(e + 16, true); const out = [];
+  for (let i = 0; i < n; i++) {
+    if (v.getUint32(p, true) !== 0x02014b50) throw new Error('zip');
+    const meth = v.getUint16(p + 10, true), cs = v.getUint32(p + 20, true), nl = v.getUint16(p + 28, true), xl = v.getUint16(p + 30, true), cl = v.getUint16(p + 32, true), lo = v.getUint32(p + 42, true);
+    const nm = new TextDecoder().decode(u.subarray(p + 46, p + 46 + nl)); p += 46 + nl + xl + cl;
+    const ds = lo + 30 + v.getUint16(lo + 26, true) + v.getUint16(lo + 28, true), raw = u.subarray(ds, ds + cs);
+    let data;
+    if (meth === 0) data = raw.slice();
+    else if (meth === 8) data = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    else throw new Error('zip method');
+    if (!nm.endsWith('/')) out.push({ name: nm, data });
+  }
+  return out;
+}
+async function syLocal(n) {                       // the files of the player's folder in the browser
+  const out = [];
+  let d; try { d = await (await navigator.storage.getDirectory()).getDirectoryHandle(syKey(n)); } catch { return out; }
+  const walk = async (h, pre) => {
+    for await (const [nm, c] of h.entries()) {
+      if (c.kind === 'directory') await walk(c, pre + nm + '/');
+      else { try { const f = await c.getFile(); out.push({ name: pre + nm, data: new Uint8Array(await f.arrayBuffer()), mtime: f.lastModified }); } catch { /* open in a game */ } }
+    }
+  };
+  await walk(d, ''); return out;
+}
+async function syWrite(n, files) {                // replaces the folder
+  const root = await navigator.storage.getDirectory();
+  try { await root.removeEntry(syKey(n), { recursive: true }); } catch { /* none yet */ }
+  const d = await root.getDirectoryHandle(syKey(n), { create: true });
+  for (const f of files) {
+    const ps = f.name.split('/').filter(x => x && x !== '.' && x !== '..'); if (!ps.length) continue;
+    let h = d; for (const q of ps.slice(0, -1)) h = await h.getDirectoryHandle(q, { create: true });
+    const w = await (await h.getFileHandle(ps[ps.length - 1], { create: true })).createWritable(); await w.write(f.data); await w.close();
+  }
+}
+// the server's copy: its time (ms), 0 none, -1 no server for it
+async function syServer(n) {
+  try { const r = await fetch('/saves/' + syKey(n), { method: 'HEAD', cache: 'no-store' }); return r.ok ? (Date.parse(r.headers.get('last-modified') || '') || 1) : r.status === 404 ? 0 : -1; } catch { return -1; }
+}
+let syMsg = '';
+const syKb = b => nf().format(Math.max(1, Math.round(b / 1024))) + ' KB';
+async function syPush(n, loc) {
+  loc = loc || await syLocal(n);
+  if (!loc.length) { syMsg = t('sy_nolocal'); return false; }
+  const blob = zipMake(loc);
+  if (blob.size > 16e6) { syMsg = t('sy_big'); return false; }
+  const r = await fetch('/saves/' + syKey(n), { method: 'PUT', body: blob });
+  if (!r.ok) { syMsg = t('sy_down'); return false; }
+  syMsg = t('sy_pushed') + ' ' + loc.length + ' · ' + syKb(blob.size); return true;
+}
+async function syPull(n) {
+  const r = await fetch('/saves/' + syKey(n), { cache: 'no-store' });
+  if (r.status === 404) { syMsg = t('sy_noserver'); return false; }
+  if (!r.ok) { syMsg = t('sy_down'); return false; }
+  const files = await zipRead(await r.arrayBuffer());
+  await syWrite(n, files); syMsg = t('sy_pulled') + ' ' + files.length; return true;
+}
+// after the name is entered (and before Play): a folder with nothing in it takes the server's copy; a newer folder goes up
+async function syAuto() {
+  if (!GAME.sync) return;
+  const n = syName(); if (!n) { await syShow(); return; }
+  try {
+    const sv = await syServer(n);
+    if (sv >= 0) {
+      const loc = await syLocal(n), lm = loc.reduce((m, f) => Math.max(m, f.mtime), 0);
+      if (!loc.length) { if (sv > 0) await syPull(n); }
+      else if (lm > sv + 2000) await syPush(n, loc);
+      else if (sv > lm + 2000) syMsg = t('sy_newer');
+    }
+  } catch { syMsg = t('sy_fail'); }
+  await syShow();
+}
+async function syShow() {
+  const box = $('#sy-line'); if (!box) return;
+  const n = syName(); let txt = syMsg;
+  if (!txt && n) {
+    try { const sv = await syServer(n), loc = await syLocal(n); txt = loc.length ? t('sy_have') + ' ' + loc.length : t('sy_nolocal');
+      txt += sv > 0 ? ' · ' + t('sy_srv') + ' ' + new Date(sv).toLocaleString(lang === 'cs' ? 'cs-CZ' : 'en-GB') : sv === 0 ? ' · ' + t('sy_noserver') : ''; } catch { txt = ''; }
+  }
+  box.textContent = txt;
+}
+function syBind() {
+  $('#sync').hidden = !GAME.sync; if (!GAME.sync) return;
+  const run = f => async () => { const n = syName(); if (!n) { syMsg = t('sy_need'); return syShow(); } try { await f(n); } catch (e) { syMsg = t('sy_fail'); } await syShow(); setTimeout(() => { syMsg = ''; syShow(); }, 8000); };
+  $('#sy-pull').addEventListener('click', run(n => syPull(n)));
+  $('#sy-push').addEventListener('click', run(n => syPush(n)));
+  $('#sy-exp').addEventListener('click', run(async n => {
+    const loc = await syLocal(n); if (!loc.length) { syMsg = t('sy_nolocal'); return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(zipMake(loc)); a.download = syKey(n) + '.zip'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    syMsg = t('sy_saved') + ' ' + loc.length;
+  }));
+  $('#sy-imp').addEventListener('click', () => $('#sy-file').click());
+  $('#sy-file').addEventListener('change', run(async n => {
+    const f = $('#sy-file').files[0]; $('#sy-file').value = ''; if (!f) return;
+    const files = await zipRead(await f.arrayBuffer()); await syWrite(n, files); syMsg = t('sy_imported') + ' ' + files.length;
+  }));
+  name.addEventListener('change', () => { syMsg = ''; syAuto(); });
+}
+
 let forced = false;
 $('#force').addEventListener('click', () => { forced = true; $('#f').requestSubmit(); });
 $('#f').addEventListener('submit', e => {
@@ -690,12 +822,14 @@ $('#f').addEventListener('submit', e => {
   store.set(GAME.id + '-opts', JSON.stringify(optsGet()));
   store.set(GAME.storeKey, n); store.set(GAME.id + '-res', $('#res').value); store.set(GAME.id + '-touch', $('#touch').value);
   const f = forced; forced = false;
-  preStop().then(() => launch(n, f));
+  preStop().then(() => syAuto().catch(() => {})).then(() => launch(n, f));
 });
 name.addEventListener('input', () => { err.textContent = ''; });
 $('#lang').addEventListener('click', () => { lang = lang === 'cs' ? 'en' : 'cs'; store.set('landing-lang', lang); render(); });
 
 render();
+syBind();
+syAuto();
 runChecks();
 probe();
 preInit();

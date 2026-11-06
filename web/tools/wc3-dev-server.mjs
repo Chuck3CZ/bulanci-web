@@ -153,6 +153,29 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  // player progress, one zip per player (the start page's "Game progress"): /saves/<key>, key = the save folder's name.
+  // Whoever knows the name can read and replace it (no password): the server is for friends.
+  const mSave = /^\/saves\/([a-z0-9_-]{1,60})$/.exec(p);
+  if (mSave) {
+    const f = path.join(OUT, 'saves', mSave[1] + '.zip'), H = { ...ISOLATION, 'Cache-Control': 'no-store' };
+    if (req.method === 'PUT') {
+      const parts = []; let n = 0, bad = false;
+      req.on('data', d => { n += d.length; if (n > 16e6) { bad = true; req.destroy(); } else parts.push(d); });
+      req.on('end', () => {
+        if (bad) return;
+        try { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f + '.tmp', Buffer.concat(parts)); fs.renameSync(f + '.tmp', f); console.log(`[saves] ${mSave[1]}: ${n} bytes`); res.writeHead(204, H).end(); }
+        catch (e) { console.log('[saves] ' + e.message); res.writeHead(500, H).end(); }
+      });
+      req.on('close', () => { if (bad && !res.headersSent) { try { res.writeHead(413, H).end(); } catch { /* gone */ } } });
+      return;
+    }
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      let st; try { st = fs.statSync(f); } catch { res.writeHead(404, H).end(); return; }
+      res.writeHead(200, { ...H, 'Content-Type': 'application/zip', 'Content-Length': st.size, 'Last-Modified': st.mtime.toUTCString() });
+      if (req.method === 'HEAD') res.end(); else fs.createReadStream(f).pipe(res);
+      return;
+    }
+  }
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, ISOLATION).end(); return; }
   if (p === '/data-manifest') { res.writeHead(200, { ...ISOLATION, 'Content-Type': 'application/json' }).end(MANIFEST); return; }
   if (p.startsWith('/data/')) { const f = inside(DATA, p.slice(6)); return f ? sendFile(req, res, f) : res.writeHead(403, ISOLATION).end(); }
