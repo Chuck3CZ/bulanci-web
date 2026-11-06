@@ -2,53 +2,703 @@
 <html lang="cs">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Colin McRae Rally 2005</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex">
+<title>Bulánci v prohlížeči</title>
+<meta name="description" content="Bulánci 1.80 přímo v prohlížeči. Fanouškovský projekt, WebAssembly a WebGPU.">
+<meta name="theme-color" content="#0e0f12">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23111'/%3E%3Cpath d='M16 5l3 8 8 3-8 3-3 8-3-8-8-3 8-3z' fill='%23ff6a1a'/%3E%3C/svg%3E">
 <style>
-  :root { --bg: #0d0f14; --panel: #171b24; --text: #e8e6df; --muted: #9a9890; --accent: #d9a441; --line: #2a3040; }
+  /* Jeden soubor bez závislostí: server posílá COEP require-corp, takže žádné externí písmo, obrázek ani skript. */
+  :root { --bg: #0e0f12; --panel: #181a1f; --text: #ececea; --muted: #a09d97; --accent: #ff6a1a; --accent2: #ffa24d; --accent-ink: #1a0a02;
+          --line: #2b2e36; --ok: #6fcf8e; --bad: #ff7a6b; --warn: #f0b84a;
+          --art: radial-gradient(900px 520px at 85% -8%, rgba(255,106,26,.22), transparent 62%), radial-gradient(700px 500px at 5% 5%, rgba(255,214,102,.08), transparent 60%),
+                 repeating-linear-gradient(100deg, rgba(255,106,26,.055) 0 3px, transparent 3px 44px); }
   * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text);
-         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 16px; }
-  main { width: 100%; max-width: 440px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 28px; }
-  h1 { margin: 0 0 4px; font-size: 22px; }
-  p { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
-  label { display: block; font-size: 14px; margin-bottom: 6px; }
-  input { width: 100%; padding: 10px 12px; font-size: 16px; color: var(--text); background: var(--bg);
-          border: 1px solid var(--line); border-radius: 6px; }
-  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  button { margin-top: 16px; width: 100%; padding: 11px; font-size: 16px; font-weight: 600; color: #1a1408;
-           background: var(--accent); border: 0; border-radius: 6px; cursor: pointer; }
-  button:disabled { opacity: .5; cursor: default; }
-  .note { margin-top: 18px; font-size: 13px; color: var(--muted); }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+         font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; position: relative; overflow-x: hidden; }
+  .bg { position: fixed; inset: 0; z-index: 0; background: var(--art); pointer-events: none; }
+  .bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 40%, var(--bg) 100%); }
+  main, .top, footer { position: relative; z-index: 1; width: 100%; max-width: 980px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  a:hover { color: var(--accent2); }
+  button, select, input { font: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 18px; padding-bottom: 6px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: .02em; color: var(--muted); font-size: 14px; }
+  .brand svg { width: 28px; height: 28px; color: var(--accent); }
+  .top-end { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px;
+          background: color-mix(in srgb, var(--panel) 80%, transparent); color: var(--text); font-size: 14px; text-decoration: none; cursor: pointer; backdrop-filter: blur(6px); }
+  .chip:hover { border-color: var(--accent); color: var(--text); }
+  .chip svg { width: 16px; height: 16px; fill: currentColor; }
+
+  .hero { padding: 7vh 0 22px; }
+  .eyebrow { margin: 0 0 8px; color: var(--accent); font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+  h1 { margin: 0 0 12px; font-size: clamp(30px, 6.2vw, 56px); line-height: 1.05; letter-spacing: -.01em; font-weight: 800; text-wrap: balance; }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lead { margin: 0; max-width: 56ch; color: var(--muted); font-size: clamp(16px, 2.2vw, 19px); }
+
+  .card { background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line); border-radius: 14px; padding: 22px; backdrop-filter: blur(8px); }
+  .play { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; margin-top: 8px; }
+  @media (max-width: 760px) { .play { grid-template-columns: 1fr; } }
+  h2 { margin: 0 0 12px; font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  label { display: block; font-size: 14px; margin: 0 0 6px; }
+  .field { margin-bottom: 14px; }
+  input[type=text], select { width: 100%; padding: 11px 12px; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font-size: 16px; }
+  input[type=text]:focus-visible, select:focus-visible { outline-offset: 1px; border-color: var(--accent); }
+  .hint { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+  .err { margin: 8px 0 0; font-size: 14px; color: var(--bad); min-height: 1.4em; }
+  .go { width: 100%; margin-top: 4px; padding: 14px; font-size: 18px; font-weight: 800; letter-spacing: .02em; color: var(--accent-ink);
+        background: var(--accent); border: 0; border-radius: 10px; cursor: pointer; transition: transform .12s, filter .12s, box-shadow .12s;
+        box-shadow: 0 6px 24px -8px var(--accent); }
+  .go:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .go:active { transform: none; }
+  .go:disabled { opacity: .5; cursor: default; transform: none; box-shadow: none; }
+  .linklike { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font-size: 13px; }
+
+  .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .checks li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; font-size: 15px; }
+  .checks .ic { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; background: var(--line); color: var(--muted); }
+  .checks .ok .ic { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--ok); }
+  .checks .bad .ic { background: color-mix(in srgb, var(--bad) 22%, transparent); color: var(--bad); }
+  .checks .warn .ic { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); }
+  .checks small { display: block; color: var(--muted); font-size: 13px; line-height: 1.4; }
+  .srv { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); display: grid; gap: 3px; }
+  .srv b { color: var(--text); font-weight: 600; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .dot.off { background: var(--bad); }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 14px 0 0; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .grid .card { padding: 18px; }
+  .grid ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14.5px; }
+  .grid li { margin-bottom: 5px; }
+  .grid p { margin: 0 0 12px; color: var(--muted); font-size: 14.5px; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; margin-right: 6px; background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+
+  footer { padding-top: 28px; padding-bottom: calc(28px + env(safe-area-inset-bottom)); color: var(--muted); font-size: 13px; }
+  footer p { margin: 0 0 6px; max-width: 80ch; }
+
+  .adv { margin: 0 0 14px; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; }
+  .adv summary { cursor: pointer; padding: 10px 0; font-size: 14px; color: var(--muted); }
+  .adv[open] summary { color: var(--text); }
+  .chk { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 12px; font-size: 14px; cursor: pointer; }
+  .chk input { margin: 3px 0 0; width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+  .cbox { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0 12px; }
+  .cinfo { display: grid; gap: 3px; margin: 2px 0 10px; font-size: 13px; color: var(--muted); }
+  .cinfo b { color: var(--text); font-weight: 600; }
+  .cinfo .note { color: var(--ok); }
+  .pre { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .pre h2 { margin-bottom: 6px; }
+  .pre .hint { margin: 0; min-height: 2.8em; }
+  .pbar { height: 8px; margin: 8px 0 12px; border-radius: 4px; background: var(--line); overflow: hidden; }
+  .pfill { height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+  .chk small { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+
+  /* načítání */
+  .load { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--bg) 94%, #000); }
+  .load[hidden], dialog:not([open]) { display: none; }
+  .load-box { width: 100%; max-width: 420px; text-align: center; }
+  .ring { position: relative; width: 150px; height: 150px; margin: 0 auto 18px; }
+  .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring .track { fill: none; stroke: var(--line); stroke-width: 7; }
+  .ring .arc { fill: none; stroke: var(--accent); stroke-width: 7; stroke-linecap: round; stroke-dasharray: 276.46; stroke-dashoffset: 276.46; transition: stroke-dashoffset .25s ease; filter: drop-shadow(0 0 6px var(--accent)); }
+  .ring.indet svg { animation: spin 1.1s linear infinite; }
+  .ring.indet .arc { stroke-dashoffset: 190; transition: none; }
+  .ring .pct { position: absolute; inset: 0; display: grid; place-items: center; font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  @keyframes spin { to { transform: rotate(270deg); } }
+  .load h3 { margin: 0 0 4px; font-size: 22px; }
+  .load .sub { margin: 0 0 18px; color: var(--muted); font-size: 14px; min-height: 1.4em; }
+  .steps { list-style: none; margin: 0 0 20px; padding: 0; text-align: left; display: grid; gap: 7px; font-size: 14.5px; }
+  .steps li { display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; color: var(--muted); }
+  .steps li::before { content: "○"; text-align: center; }
+  .steps li.cur { color: var(--text); }
+  .steps li.cur::before { content: "◔"; color: var(--accent); }
+  .steps li.done { color: var(--text); }
+  .steps li.done::before { content: "✓"; color: var(--ok); font-weight: 800; }
+  .steps li.fail { color: var(--bad); }
+  .steps li.fail::before { content: "✕"; font-weight: 800; }
+  .steps span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .btn2 { padding: 10px 20px; color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+  .btn2:hover { border-color: var(--accent); }
+
+  /* ovládání */
+  dialog { width: min(720px, calc(100vw - 24px)); max-height: calc(100vh - 24px); padding: 0; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+  dialog::backdrop { background: rgba(0,0,0,.65); }
+  .dlg-h { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); }
+  .dlg-h h3 { margin: 0; font-size: 18px; }
+  .dlg-b { padding: 6px 20px 20px; overflow: auto; max-height: calc(100vh - 110px); }
+  .dlg-b h4 { margin: 18px 0 8px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+  .dlg-b .note { margin: 14px 0 0; color: var(--muted); font-size: 14px; }
+  .keys { display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 6px 16px; align-items: baseline; font-size: 14.5px; }
+  .keys kbd { display: inline-block; padding: 1px 7px; margin: 1px 2px 1px 0; font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; white-space: nowrap; }
+  .keys span { color: var(--muted); }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
+<div class="bg" aria-hidden="true"></div>
+
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><path fill="currentColor" d="M6 8h20v14H14l-6 5v-5H6z"/></svg>
+    <span data-t="fanproject"></span>
+  </div>
+  <div class="top-end">
+    <button class="chip" id="lang" type="button" aria-label="Language / Jazyk"><span id="lang-l">EN</span></button>
+    <a class="chip" id="gh" href="https://github.com/Chuck3CZ/bulanci-web" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.5 7.5 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a>
+  </div>
+</header>
+
 <main>
-  <h1>Colin McRae Rally 2005</h1>
-  <p>České vydání v prohlížeči. Hráči se vidí v síťové hře (LAN).</p>
-  <form id="f">
-    <label for="name">Jméno hráče</label>
-    <input id="name" maxlength="15" autocomplete="nickname" required pattern="[A-Za-z0-9_\-]{2,15}"
-           title="2–15 znaků: písmena bez diakritiky, číslice, _ nebo -">
-    <button id="go">Hrát</button>
-  </form>
-  <div class="note">Potřebuje Chrome (nebo Edge) s WebGPU. Profily a uložené hry zůstávají v tomto prohlížeči.
-    Hra se stahuje průběžně (data mají 2,9 GB).</div>
+  <section class="hero">
+    <p class="eyebrow" data-g="eyebrow"></p>
+    <h1></h1>
+    <p class="lead" data-g="lead"></p>
+  </section>
+
+  <section class="card play">
+    <form id="f" novalidate>
+      <h2 data-t="start"></h2>
+      <div class="field">
+        <label for="name" data-t="player"></label>
+        <input id="name" type="text" maxlength="15" autocomplete="nickname" autocapitalize="off" spellcheck="false" required pattern="[A-Za-z0-9_\-]{2,15}">
+        <p class="hint" data-t="namehint"></p>
+        <p class="err" id="err" role="alert"></p>
+      </div>
+      <div class="field">
+        <label for="res" data-t="res"></label>
+        <select id="res">
+          <option value="" data-t="resauto"></option>
+          <option value="1280x720">1280 × 720</option>
+          <option value="1600x900">1600 × 900</option>
+          <option value="1920x1080">1920 × 1080</option>
+        </select>
+        <p class="hint" data-t="reshint"></p>
+      </div>
+      <div class="field" id="touchf" hidden>
+        <label for="touch" data-t="touch"></label>
+        <select id="touch">
+          <option value="" data-t="touchauto"></option>
+          <option value="on" data-t="touchon"></option>
+          <option value="off" data-t="touchoff"></option>
+        </select>
+        <p class="hint" data-t="touchhint"></p>
+      </div>
+      <details class="adv" id="adv">
+        <summary data-t="adv"></summary>
+        <label class="chk"><input type="checkbox" id="o-showlog"><span><span data-t="o_showlog"></span><small data-t="o_showlog_h"></small></span></label>
+        <label class="chk"><input type="checkbox" id="o-logpost"><span><span data-t="o_logpost"></span><small data-t="o_logpost_h"></small></span></label>
+        <label class="chk"><input type="checkbox" id="o-noload"><span><span data-t="o_noload"></span><small data-t="o_noload_h"></small></span></label>
+        <label class="chk"><input type="checkbox" id="o-bg"><span><span data-t="o_bg"></span><small data-t="o_bg_h"></small></span></label>
+        <label class="chk"><input type="checkbox" id="o-nocache"><span><span data-t="o_nocache"></span><small data-t="o_nocache_h"></small></span></label>
+        <div class="cinfo" id="cache-info" aria-live="polite"></div>
+        <div class="cbox"><button type="button" class="chip" id="cache-clear" data-t="cc_btn"></button></div>
+      </details>
+      <button class="go" id="go" type="submit" data-t="play"></button>
+      <p class="hint"><span data-g="dlnote"></span> <button type="button" class="linklike" id="force" hidden data-t="force"></button></p>
+      <div class="pre" id="pre" hidden>
+        <h2 data-t="pre_h"></h2>
+        <p class="hint" id="pre-info" aria-live="polite"></p>
+        <div class="pbar" id="pre-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="pfill" id="pre-fill"></div></div>
+        <button type="button" class="chip" id="pre-go"></button>
+      </div>
+    </form>
+    <div>
+      <h2 data-t="envh"></h2>
+      <ul class="checks" id="checks"></ul>
+      <div class="srv" id="srv"></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h2 data-t="ctlh"></h2>
+      <p data-g="ctlp"></p>
+      <button class="chip" id="ctl-open" type="button" data-t="ctlbtn"></button>
+    </div>
+    <div class="card">
+      <h2 data-t="stath"></h2>
+      <ul id="status"></ul>
+    </div>
+    <div class="card">
+      <h2 data-t="needh"></h2>
+      <ul id="need"></ul>
+    </div>
+  </section>
 </main>
+
+<footer>
+  <p data-g="disclaimer"></p>
+  <p><span data-t="method"></span> <a href="https://github.com/Chuck3CZ/nfsu2-web" target="_blank" rel="noopener noreferrer">nfsu2-web</a> · <a href="https://github.com/Chuck3CZ/bulanci-web" target="_blank" rel="noopener noreferrer" data-t="source"></a> · <span id="ver"></span></p>
+</footer>
+
+<div class="load" id="load" hidden role="dialog" aria-modal="true" aria-labelledby="load-h">
+  <div class="load-box">
+    <div class="ring indet" id="ring">
+      <svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="44"/><circle class="arc" id="arc" cx="50" cy="50" r="44"/></svg>
+      <div class="pct" id="pct" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+    </div>
+    <h3 id="load-h" data-t="loading"></h3>
+    <p class="sub" id="sub" aria-live="polite"></p>
+    <ul class="steps" id="steps"></ul>
+    <button class="btn2" id="cancel" type="button" data-t="cancel"></button>
+  </div>
+</div>
+
+<dialog id="ctl" aria-labelledby="ctl-h">
+  <div class="dlg-h"><h3 id="ctl-h" data-t="ctlh"></h3><button class="chip" id="ctl-close" type="button" data-t="close"></button></div>
+  <div class="dlg-b" id="ctl-b"></div>
+</dialog>
+
 <script>
-  const name = document.getElementById('name');
-  try { name.value = localStorage.getItem('cmr-name') || ''; } catch {}
-  document.getElementById('f').addEventListener('submit', e => {
-    e.preventDefault();
-    const n = name.value.trim();
-    if (!name.checkValidity()) return;
-    try { localStorage.setItem('cmr-name', n); } catch {}
-    const q = new URLSearchParams();
-    q.set('wasm', '/wc3.wasm'); q.set('pages', '20480'); q.set('arg', '/data/CMR5.EXE');
-    q.append('env', 'WC3_SAVEDIR=/save'); q.append('env', 'WC3_READONLY_DATA=1');
-    q.set('gpu', ''); q.set('net', n); q.set('save', 'cmr-' + n.toLowerCase());
-    location.href = '/test/hostcheck.html?' + q.toString();
-  });
+'use strict';
+const GAME = {
+  id: 'bulanci', storeKey: 'bulanci-name', savePrefix: 'bulanci-', wasm: '/wc3.wasm', exe: '/data/bulanci.exe', pages: 20480, touch: false, predownload: false,
+  name: ['Bulánci v prohlížeči', 'Bulánci in the browser'],
+  eyebrow: ['Fanouškovský projekt · WebAssembly + WebGPU', 'Fan project · WebAssembly + WebGPU'],
+  titleParts: [['Bu', 'Bu'], ['lánci', 'lánci']],
+  lead: ['Verze 1.80 od SleepTeam Labs přímo v prohlížeči. Zatím se rozběhlo hlavní menu a nastavení hry, start kola ještě ne.', 'Version 1.80 by SleepTeam Labs right in the browser. So far the main menu and the game setup run; starting a round does not work yet.'],
+  dlnote: ['Modul se stáhne jednou, hra (22 MB) se načítá z jednoho souboru na serveru.', 'The module downloads once; the game (22 MB) is one file on the server.'],
+  ctlp: ['Klávesnice a myš. Přiřazení kláves je v nastavení hry.', 'Keyboard and mouse. Key bindings are in the game setup.'],
+  status: [
+    { tag: ['Funguje', 'Works'], t: ['hlavní menu a nastavení hry, obraz (DirectDraw přes WebGPU)', 'main menu and game setup, picture (DirectDraw on WebGPU)'] },
+    { tag: ['Nefunguje', 'Not working'], t: ['start kola po „Hrát“', 'starting a round after “Play”'] },
+    { tag: ['Chybí', 'Missing'], t: ['hra po síti (DirectPlay), ukládání nastavení, dotykové ovládání', 'network play (DirectPlay), saving the settings, touch controls'] },
+  ],
+  need: [
+    { t: ['Aktuální Chrome nebo Edge s WebGPU', 'A current Chrome or Edge with WebGPU'] },
+    { t: ['Počítač s klávesnicí a myší', 'A computer with a keyboard and mouse'] },
+    { t: ['Soubor bulanci.exe 1.80 dodává provozovatel serveru, repozitář ho neobsahuje', 'The server operator supplies bulanci.exe 1.80; the repository does not contain it'] },
+  ],
+  controls: [
+    { h: ['Klávesnice a myš', 'Keyboard and mouse'], rows: [
+      [[['↑'], ['↓'], ['←'], ['→'], ['Enter'], ['Esc']], ['menu: pohyb, potvrdit, zpět (myší lze také)', 'menus: move, confirm, back (the mouse works too)']],
+    ] },
+  ],
+  ctlnote: ['Ovládání hráčů si nastavíš v menu hry.', 'Player controls are set in the game menu.'],
+  disclaimer: ['Fanouškovský projekt, nijak nesouvisí se SleepTeam Labs a není jimi schválen. Bulánci je ochranná známka svého majitele.', 'A fan project, not affiliated with or endorsed by SleepTeam Labs. Bulánci is a trademark of its owner.'],
+};
+const UI = {
+  cs: {
+    fanproject: 'Fanouškovský projekt', start: 'Začít hrát', player: 'Jméno hráče',
+    namehint: '2–15 znaků: písmena bez diakritiky, číslice, _ nebo -. Pod ním se ukládají profily a hry v tomto prohlížeči.',
+    res: 'Rozlišení obrazu', resauto: 'Podle obrazovky (doporučeno)', reshint: 'Nižší rozlišení je méně náročné na grafiku.',
+    touch: 'Dotykové ovládání', touchauto: 'Automaticky', touchon: 'Zapnout', touchoff: 'Vypnout', touchhint: 'Tlačítka přes hru pro telefon a tablet. Automaticky se zapnou jen na dotykovém zařízení.',
+    adv: 'Pokročilé a ladění', o_showlog: 'Zobrazit log pod hrou', o_showlog_h: 'Běžně je skrytý.', o_logpost: 'Zapisovat log na server', o_logpost_h: 'Pro hlášení chyb: log si pak přečte provozovatel serveru.',
+    o_noload: 'Bez načítacího překryvu', o_noload_h: 'Stránka hry se spustí jako dřív, bez kroků načítání.', o_nocache: 'Neukládat modul do paměti prohlížeče', o_nocache_h: 'Modul se vždy stáhne znovu.', skipped: 'přeskočeno', o_bg: 'Nechat hru běžet i na skryté kartě', o_bg_h: 'Zkušební: dlouhé načítání se nezastaví, když přepneš jinam. Prohlížeč ale skryté kartě ubírá výkon.', cc_btn: 'Smazat uložený modul', cc_none: 'Nic není uloženo.', cc_has: 'Uloženo v prohlížeči:', cc_done: 'Smazáno. Příští start stáhne modul znovu. Uložené hry a profily zůstaly.', cc_fail: 'Smazání se nepovedlo.', cc_mod: 'Modul hry v paměti', cc_site: 'Úložiště stránky v prohlížeči', cc_of: 'z', cc_in: 'z toho', cc_caches: 'cache', cc_files: 'uložené hry a profily', cc_other: 'ostatní', cc_pers: 'Trvalé úložiště', cc_yes: 'ano', cc_no: 'ne: při nedostatku místa může prohlížeč cache smazat', cc_ver: 'verze', pre_h: 'Hra v tomto prohlížeči', pre_have: 'Staženo', pre_left: 'zbývá', pre_go: 'Stáhnout hru předem', pre_cont: 'Pokračovat ve stahování', pre_stop: 'Zastavit',
+    pre_done: 'Hotovo: celá hra je v tomto prohlížeči a nečeká na síť.', pre_err: 'Stahování se zastavilo:', pre_note: 'Zbývá stáhnout {n} (bez videí). Stahování jde přerušit a později pokračovat.',
+    play: 'Hrát', force: 'Spustit i přesto', envh: 'Tvůj prohlížeč', ctlh: 'Ovládání', ctlbtn: 'Zobrazit ovládání', close: 'Zavřít',
+    stath: 'Stav projektu', needh: 'Co potřebuješ', loading: 'Připravuji hru', cancel: 'Zrušit', back: 'Zpět',
+    method: 'Metoda a runtime vychází z', source: 'Zdrojový kód a dokumentace',
+    c_secure: 'Zabezpečené spojení (HTTPS)', c_secure_bad: 'Stránka není na HTTPS ani na localhostu. Chrome tu nepovolí WebGPU a vlákna.',
+    c_iso: 'Izolace stránky (vlákna a sdílená paměť)', c_iso_bad: 'Chybí hlavičky COOP/COEP nebo SharedArrayBuffer. Hra potřebuje vlákna.',
+    c_gpu: 'WebGPU', c_gpu_bad: 'WebGPU není dostupné. Použij aktuální Chrome nebo Edge na počítači s podporou WebGPU.', c_gpu_none: 'Prohlížeč nenašel žádnou grafickou kartu pro WebGPU.',
+    c_opfs: 'Úložiště profilů a uložených her', c_opfs_bad: 'Prohlížeč nepovolil úložiště (soukromé okno?). Uložené hry by se nezachovaly.',
+    c_br: 'Prohlížeč', c_br_warn: 'Hra je testovaná v Chrome a Edge. Jiný prohlížeč nemusí fungovat.',
+    c_ptr: 'Myš a klávesnice', c_ptr_warn: 'Vypadá to na dotykové zařízení bez myši. Hra se ovládá myší a klávesnicí.',
+    checking: 'kontroluji…',
+    s_mod: 'Modul hry', s_data: 'Herní data na serveru', s_up: 'aktualizováno', s_ok: 'k dispozici', s_no: 'nedostupná', s_srv: 'Server neodpovídá. Je stránka otevřená z hostitelského serveru?',
+    l_chk: 'Kontrola prohlížeče', l_mod: 'Stažení modulu hry', l_data: 'Připojení k herním datům', l_go: 'Spuštění hry',
+    l_sub0: 'Chvilku strpení…', l_sub_mod: 'Stahuji modul hry. Příště se načte z paměti prohlížeče.', l_sub_go: 'Otevírám hru. Další načítání uvidíš na její stránce.',
+    l_err_mod: 'Modul se nepodařilo stáhnout.', l_err_data: 'Herní data na serveru nejsou dostupná.',
+    cached: 'z paměti prohlížeče', mb: 'MB', badname: 'Jméno musí mít 2–15 znaků: písmena bez diakritiky, číslice, _ nebo -.',
+  },
+  en: {
+    fanproject: 'Fan project', start: 'Start playing', player: 'Player name',
+    namehint: '2–15 characters: letters without accents, digits, _ or -. Profiles and saves are stored under it in this browser.',
+    res: 'Picture resolution', resauto: 'Match the screen (recommended)', reshint: 'A lower resolution is easier on the graphics card.',
+    touch: 'Touch controls', touchauto: 'Automatic', touchon: 'On', touchoff: 'Off', touchhint: 'Buttons over the game for phones and tablets. Automatic turns them on only on a touch device.',
+    adv: 'Advanced and debugging', o_showlog: 'Show the log under the game', o_showlog_h: 'Hidden by default.', o_logpost: 'Write the log to the server', o_logpost_h: 'For bug reports: the server operator then reads the log.',
+    o_noload: 'No loading overlay', o_noload_h: 'The game page starts as it used to, without the loading steps.', o_nocache: 'Do not keep the module in the browser', o_nocache_h: 'The module is always downloaded again.', skipped: 'skipped', o_bg: 'Keep the game running in a hidden tab', o_bg_h: 'Experimental: a long load does not stop when you switch away. The browser still slows a hidden tab.', cc_btn: 'Clear the stored module', cc_none: 'Nothing is stored.', cc_has: 'Stored in the browser:', cc_done: 'Cleared. The next start downloads the module again. Saved games and profiles stay.', cc_fail: 'Clearing failed.', cc_mod: 'Game module stored', cc_site: 'This page\'s storage in the browser', cc_of: 'of', cc_in: 'of that', cc_caches: 'cache', cc_files: 'saved games and profiles', cc_other: 'other', cc_pers: 'Persistent storage', cc_yes: 'yes', cc_no: 'no: the browser may clear the cache when space runs short', cc_ver: 'version', pre_h: 'Game in this browser', pre_have: 'Downloaded', pre_left: 'left', pre_go: 'Download the game ahead', pre_cont: 'Continue downloading', pre_stop: 'Stop',
+    pre_done: 'Done: the whole game is in this browser and never waits on the network.', pre_err: 'The download stopped:', pre_note: '{n} left to download (without the videos). It can be stopped and continued later.',
+    play: 'Play', force: 'Start anyway', envh: 'Your browser', ctlh: 'Controls', ctlbtn: 'Show controls', close: 'Close',
+    stath: 'Project status', needh: 'What you need', loading: 'Getting the game ready', cancel: 'Cancel', back: 'Back',
+    method: 'Method and runtime come from', source: 'Source code and documentation',
+    c_secure: 'Secure connection (HTTPS)', c_secure_bad: 'This page is not on HTTPS or localhost. Chrome will not allow WebGPU and threads here.',
+    c_iso: 'Page isolation (threads and shared memory)', c_iso_bad: 'The COOP/COEP headers or SharedArrayBuffer are missing. The game needs threads.',
+    c_gpu: 'WebGPU', c_gpu_bad: 'WebGPU is not available. Use a current Chrome or Edge on a computer with WebGPU support.', c_gpu_none: 'The browser found no graphics adapter for WebGPU.',
+    c_opfs: 'Storage for profiles and saves', c_opfs_bad: 'The browser denied storage (private window?). Saved games would not be kept.',
+    c_br: 'Browser', c_br_warn: 'The game is tested in Chrome and Edge. Another browser may not work.',
+    c_ptr: 'Mouse and keyboard', c_ptr_warn: 'This looks like a touch device without a mouse. The game is played with mouse and keyboard.',
+    checking: 'checking…',
+    s_mod: 'Game module', s_data: 'Game data on the server', s_up: 'updated', s_ok: 'available', s_no: 'unavailable', s_srv: 'The server does not answer. Is this page opened from the host server?',
+    l_chk: 'Browser check', l_mod: 'Downloading the game module', l_data: 'Connecting to the game data', l_go: 'Starting the game',
+    l_sub0: 'One moment…', l_sub_mod: 'Downloading the module. Next time it loads from the browser cache.', l_sub_go: 'Opening the game. You will see the rest of the loading on its page.',
+    l_err_mod: 'The module could not be downloaded.', l_err_data: 'The game data on the server is not available.',
+    cached: 'from the browser', mb: 'MB', badname: 'The name needs 2–15 characters: letters without accents, digits, _ or -.',
+  },
+};
+const $ = s => document.querySelector(s);
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+let lang = store.get('landing-lang') || (/^(cs|sk)/i.test(navigator.language) ? 'cs' : 'en');
+if (lang !== 'cs' && lang !== 'en') lang = 'cs';
+const L = () => (lang === 'cs' ? 0 : 1);
+const tx = v => (Array.isArray(v) ? (v[L()] ?? v[0]) : v);
+const t = k => UI[lang][k] ?? k;
+let ckResults = [];
+const nf = () => new Intl.NumberFormat(lang === 'cs' ? 'cs-CZ' : 'en-GB', { maximumFractionDigits: 1 });
+
+function el(tag, text, cls) { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; }
+
+function render() {
+  document.documentElement.lang = lang;
+  $('#lang-l').textContent = lang === 'cs' ? 'EN' : 'CS';
+  document.title = tx(GAME.name);
+  for (const e of document.querySelectorAll('[data-t]')) e.textContent = t(e.dataset.t);
+  for (const e of document.querySelectorAll('[data-g]')) e.textContent = tx(GAME[e.dataset.g]);
+  const h1 = $('h1'); h1.textContent = ''; const [a, b] = GAME.titleParts; h1.append(tx(a), el('em', tx(b)));
+  for (const [id, list] of [['status', GAME.status], ['need', GAME.need]]) {
+    const ul = $('#' + id); ul.textContent = '';
+    for (const it of list) { const li = el('li'); if (it.tag) li.append(el('span', tx(it.tag), 'tag')); li.append(tx(it.t)); ul.append(li); }
+  }
+  $('#touchf').hidden = !GAME.touch;
+  drawChecks(); drawSrv(); drawControls(); cacheInfo(); preRender();
+}
+
+// ---- kontrola prohlížeče ----
+async function runChecks() {
+  const r = [];
+  const add = (id, state, bad) => r.push({ id, state, bad });
+  add('c_secure', window.isSecureContext ? 'ok' : 'bad', 'c_secure_bad');
+  add('c_iso', (crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined') ? 'ok' : 'bad', 'c_iso_bad');
+  let gpu = 'bad', gpuMsg = 'c_gpu_bad';
+  if (navigator.gpu) { try { gpu = (await navigator.gpu.requestAdapter()) ? 'ok' : 'bad'; gpuMsg = 'c_gpu_none'; } catch { gpu = 'bad'; } }
+  add('c_gpu', gpu, gpuMsg);
+  add('c_opfs', (navigator.storage && navigator.storage.getDirectory) ? 'ok' : 'bad', 'c_opfs_bad');
+  const brands = (navigator.userAgentData?.brands || []).map(b => b.brand).join(' ');
+  const chromium = /Chrom(e|ium)|Edg/.test(brands + ' ' + navigator.userAgent) && !/OPR|Firefox/.test(navigator.userAgent);
+  add('c_br', chromium ? 'ok' : 'warn', 'c_br_warn');
+  if (!GAME.touch) add('c_ptr', matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches ? 'warn' : 'ok', 'c_ptr_warn');
+  ckResults = r;
+  drawChecks();
+  return r;
+}
+function drawChecks() {
+  const ul = $('#checks'); ul.textContent = '';
+  if (!ckResults.length) { const li = el('li', t('checking')); li.style.color = 'var(--muted)'; ul.append(li); return; }
+  for (const c of ckResults) {
+    const li = el('li', null, c.state);
+    li.append(el('span', c.state === 'ok' ? '✓' : c.state === 'bad' ? '✕' : '!', 'ic'));
+    const d = el('div', t(c.id));
+    if (c.state !== 'ok') d.append(el('small', t(c.bad)));
+    li.append(d); ul.append(li);
+  }
+  const hard = ckResults.some(c => c.state === 'bad');
+  $('#force').hidden = !hard;
+}
+
+// ---- server: verze modulu a data ----
+let srv = null, modEtag = '';
+// The module's address carries its version (ETag) and a counter the "clear" button raises: a new build, or a cleared module,
+// is a new address the browser has never cached, so a stale or damaged cache entry can never be reused
+const bust = () => store.get(GAME.id + '-bust') || '0';
+const wasmUrl = () => GAME.wasm + '?v=' + encodeURIComponent(modEtag) + '&r=' + encodeURIComponent(bust());
+async function probe() {
+  srv = { ok: false };
+  try {
+    const r = await fetch(GAME.wasm, { method: 'HEAD' });
+    if (r.ok) {
+      modEtag = r.headers.get('etag') || r.headers.get('last-modified') || '';
+      srv = { ok: true, size: +r.headers.get('content-length') || 0, mod: r.headers.get('last-modified') ? new Date(r.headers.get('last-modified')) : null };
+      try { srv.data = (await fetch('/data-manifest', { method: 'HEAD' })).ok; } catch { srv.data = false; }
+    }
+  } catch {}
+  drawSrv();
+}
+function drawSrv() {
+  const box = $('#srv'); box.textContent = '';
+  if (!srv) return;
+  if (!srv.ok) { box.append(el('span', t('s_srv'))); return; }
+  const row = (k, v, dot) => { const d = el('div'); if (dot) d.append(el('span', null, 'dot ' + dot)); d.append(k + ': ', el('b', v)); box.append(d); };
+  const when = srv.mod ? ', ' + t('s_up') + ' ' + srv.mod.toLocaleString(lang === 'cs' ? 'cs-CZ' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+  row(t('s_mod'), (srv.size ? nf().format(srv.size / 1048576) + ' ' + t('mb') : t('s_ok')) + when, 'on');
+  row(t('s_data'), srv.data ? t('s_ok') : t('s_no'), srv.data ? 'on' : 'off');
+  $('#ver').textContent = srv.mod ? srv.mod.toLocaleDateString(lang === 'cs' ? 'cs-CZ' : 'en-GB') : '';
+}
+
+// ---- ovládání ----
+function drawControls() {
+  const b = $('#ctl-b'); b.textContent = '';
+  for (const sec of GAME.controls) {
+    b.append(el('h4', tx(sec.h)));
+    const g = el('div', null, 'keys');
+    for (const [keys, what] of sec.rows) {
+      const k = el('div'); for (const x of keys) k.append(el('kbd', tx(x)));
+      g.append(k, el('span', tx(what)));
+    }
+    b.append(g);
+  }
+  if (GAME.ctlnote) b.append(el('p', tx(GAME.ctlnote), 'note'));
+}
+$('#ctl-open').addEventListener('click', () => { const d = $('#ctl'); if (d.showModal) d.showModal(); else d.setAttribute('open', ''); });
+$('#ctl-close').addEventListener('click', () => $('#ctl').close());
+$('#ctl').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+
+// ---- načítání ----
+const ring = $('#ring'), arc = $('#arc'), pct = $('#pct'), sub = $('#sub'), stepsEl = $('#steps');
+let abort = null;
+function setProgress(f) {
+  if (f == null) { ring.classList.add('indet'); pct.textContent = ''; pct.setAttribute('aria-valuenow', '0'); return; }
+  ring.classList.remove('indet');
+  const p = Math.max(0, Math.min(1, f));
+  arc.style.strokeDashoffset = String(276.46 * (1 - p));
+  pct.textContent = Math.round(p * 100) + ' %'; pct.setAttribute('aria-valuenow', String(Math.round(p * 100)));
+}
+function mkSteps(keys) {
+  stepsEl.textContent = '';
+  return keys.map(k => { const li = el('li'); li.append(el('span', t(k)), el('span', '')); stepsEl.append(li); return li; });
+}
+const mark = (li, s, note) => { li.className = s; li.lastChild.textContent = note || ''; };
+
+const OPTS = ['showlog', 'logpost', 'noload', 'bg', 'nocache'];
+const optsGet = () => Object.fromEntries(OPTS.map(k => [k, $('#o-' + k).checked]));
+function gameUrl(name) {
+  const q = new URLSearchParams();
+  q.set('wasm', wasmUrl()); q.set('pages', String(GAME.pages)); q.set('arg', GAME.exe);
+  q.append('env', 'WC3_SAVEDIR=/save'); q.append('env', 'WC3_READONLY_DATA=1');
+  q.set('theme', GAME.id); q.set('gpu', ''); q.set('net', name); q.set('save', GAME.savePrefix + name.toLowerCase());
+  const res = $('#res').value; if (res) q.set('res', res);
+  if (GAME.touch) { const tv = $('#touch').value; if (tv === 'on') q.set('touch', ''); else if (tv === 'off') q.set('notouch', ''); }
+  // bg: the game is not told it is inactive (runtime/lifecycle.c NFSU2_BACKGROUND=run); the others are switches of the pages
+  for (const [k, on] of Object.entries(optsGet())) if (on) { if (k === 'bg') q.append('env', 'NFSU2_BACKGROUND=run'); else q.set(k, ''); }
+  return '/test/hostcheck.html?' + q.toString();
+}
+
+async function launch(name, force) {
+  $('#load').hidden = false;
+  document.body.style.overflow = 'hidden';
+  abort = new AbortController();
+  const sig = abort.signal;
+  const [sChk, sMod, sData, sGo] = mkSteps(['l_chk', 'l_mod', 'l_data', 'l_go']);
+  sub.textContent = t('l_sub0'); setProgress(null);
+  const fail = (li, key) => { mark(li, 'fail'); sub.textContent = t(key); setProgress(null); ring.classList.remove('indet'); arc.style.strokeDashoffset = '276.46'; pct.textContent = '✕'; $('#cancel').textContent = t('back'); };
+  try {
+    mark(sChk, 'cur');
+    const res = ckResults.length ? ckResults : await runChecks();
+    if (sig.aborted) return;
+    if (!force) { const bad = res.find(c => c.state === 'bad'); if (bad) { closeLoad(); err.textContent = t(bad.bad); return; } }
+    mark(sChk, 'done');
+
+    mark(sMod, 'cur'); sub.textContent = t('l_sub_mod');
+    const o = optsGet();
+    if (o.nocache || o.noload) mark(sMod, 'done', t('skipped'));
+    else {
+    // the module goes into the Cache Storage under its ETag (the HTTP cache refuses a file this big); the game's page
+    // (loading.js) reads the same entry, so the module comes over the network once per version
+    let etag = '', total = 0;
+    try { const h = await fetch(GAME.wasm, { method: 'HEAD', signal: sig }); etag = h.headers.get('etag') || h.headers.get('last-modified') || ''; total = +h.headers.get('content-length') || 0; modEtag = etag; } catch (e) { if (sig.aborted) return; }
+    let cache = null; try { cache = await caches.open('wasm-v1'); } catch {}
+    const key = etag ? GAME.wasm + '?v=' + encodeURIComponent(etag) : '';
+    let hit = false; if (cache && key) { try { hit = !!(await cache.match(key)); } catch {} }
+    let got = 0;
+    if (hit) mark(sMod, 'done', t('cached'));
+    else {
+      const r = await fetch(wasmUrl(), { signal: sig });
+      if (!r.ok || !r.body) return fail(sMod, 'l_err_mod');
+      total = total || +r.headers.get('content-length') || 0;
+      let body = r.body, put = null;
+      if (cache && key) { const [a, b] = body.tee(); body = a; put = cache.put(key, new Response(b, { status: 200, headers: r.headers })).catch(() => {}); }
+      const rd = body.getReader(); let last = 0;
+      for (;;) {
+        const { done, value } = await rd.read();
+        if (done) break;
+        got += value.length;
+        const now = performance.now();
+        if (now - last > 80) { last = now; if (total) { setProgress(got / total * 0.85); mark(sMod, 'cur', nf().format(got / 1048576) + ' / ' + nf().format(total / 1048576) + ' ' + t('mb')); } else mark(sMod, 'cur', nf().format(got / 1048576) + ' ' + t('mb')); }
+      }
+      if (put) await put;
+      if (cache && key) { try { for (const k of await cache.keys()) if (new URL(k.url).pathname === GAME.wasm && !k.url.endsWith(key)) await cache.delete(k); } catch {} }
+      mark(sMod, 'done', nf().format(got / 1048576) + ' ' + t('mb'));
+    }
+    }
+    setProgress(0.88);
+
+    mark(sData, 'cur');
+    let dok = false; try { dok = (await fetch('/data-manifest', { method: 'HEAD', signal: sig })).ok; } catch (e) { if (sig.aborted) return; }
+    if (!dok) return fail(sData, 'l_err_data');
+    mark(sData, 'done'); setProgress(0.96);
+
+    mark(sGo, 'cur'); sub.textContent = t('l_sub_go');
+    setProgress(1);
+    await new Promise(ok => setTimeout(ok, 350));
+    if (sig.aborted) return;
+    location.href = gameUrl(name);
+  } catch (e) {
+    if (sig.aborted) return;
+    fail([sChk, sMod, sData, sGo].find(li => li.className === 'cur') || sMod, 'l_err_mod');
+  }
+}
+function closeLoad() { abort?.abort(); abort = null; $('#load').hidden = true; document.body.style.overflow = ''; $('#cancel').textContent = t('cancel'); }
+$('#cancel').addEventListener('click', closeLoad);
+addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#load').hidden) closeLoad(); });
+addEventListener('pageshow', e => { if (e.persisted) closeLoad(); });
+
+// ---- uložený modul a úložiště stránky (Cache Storage 'wasm-v1': loading.js a načítání pod tím) ----
+let cacheNote = '';
+const big = n => (n >= 1073741824 ? nf().format(n / 1073741824) + ' GB' : nf().format(n / 1048576) + ' ' + t('mb'));
+async function cacheInfo() {
+  const box = $('#cache-info'); if (!box) return;
+  const lines = [];
+  const line = (label, value) => { const d = el('div'); d.append(label + ': ', el('b', value)); lines.push(d); };
+  if (cacheNote) lines.push(el('div', cacheNote, 'note'));
+  try {
+    // the game module(s) in the Cache Storage
+    let mods = [];
+    if (self.caches && await caches.has('wasm-v1')) {
+      const c = await caches.open('wasm-v1');
+      for (const k of await c.keys()) {
+        const r = await c.match(k), u = new URL(k.url);
+        mods.push({ name: u.pathname.split('/').pop(), bytes: +(r && r.headers.get('content-length')) || 0, ver: (u.searchParams.get('v') || '').replace(/"/g, '') });
+      }
+    }
+    if (mods.length) for (const m of mods) line(t('cc_mod'), m.name + ' · ' + (m.bytes ? big(m.bytes) : '?') + (m.ver ? ' · ' + t('cc_ver') + ' ' + m.ver : ''));
+    else line(t('cc_mod'), t('cc_none'));
+    // everything this page keeps in the browser
+    if (navigator.storage && navigator.storage.estimate) {
+      const e = await navigator.storage.estimate();
+      line(t('cc_site'), big(e.usage || 0) + (e.quota ? ' ' + t('cc_of') + ' ' + big(e.quota) : ''));
+      const d = e.usageDetails;
+      if (d) {
+        const cacheB = d.caches || 0, fileB = (d.fileSystem || 0) + (d.indexedDB || 0), rest = Math.max(0, (e.usage || 0) - cacheB - fileB);
+        line(t('cc_in'), t('cc_caches') + ' ' + big(cacheB) + ', ' + t('cc_files') + ' ' + big(fileB) + ', ' + t('cc_other') + ' ' + big(rest));
+      }
+    }
+    if (navigator.storage && navigator.storage.persisted) line(t('cc_pers'), (await navigator.storage.persisted()) ? t('cc_yes') : t('cc_no'));
+  } catch { /* the browser denies the numbers (private window): the button still works */ }
+  box.textContent = ''; box.append(...lines);
+}
+$('#cache-clear').addEventListener('click', async () => {
+  try { await caches.delete('wasm-v1'); store.set(GAME.id + '-bust', String(Date.now())); cacheNote = t('cc_done'); } catch { cacheNote = t('cc_fail'); }
+  await cacheInfo();
+  setTimeout(() => { cacheNote = ''; cacheInfo(); }, 6000);
+});
+$('#adv').addEventListener('toggle', cacheInfo);
+
+// ---- the game's data in this browser (CMR 2005 streams 2.9 GB as it plays): download it ahead ----
+// The predownload worker (/host/predownload-worker.js, src/host/predownload-worker.ts) writes the cache the game reads from
+// (OPFS "cache/": a sparse file per game file and a ".have" map, a byte per 1 MiB block).  A game writes the same files, so
+// Play stops the download first.  What it fetches is datacache.ts aheadFiles (all but movies, language and texture packs,
+// and CMR's .wmv videos, which the browser game does not play).
+const PRE = { w: null, state: 'idle', have: 0, total: 0, rate: 0, err: '', samples: [], onStopped: null };
+const PRE_BLOCK = 1 << 20;
+const preKey = f => f.path.replace(/[^A-Za-z0-9._-]/g, '_') + '.' + f.size + '.' + f.mtime;
+const preFiles = m => m.files.filter(f => !f.d && !/^(movies|langpacks|texpacks)$/i.test(f.p.split('/')[0]) && !/\.wmv$/i.test(f.p))
+  .map(f => ({ path: f.p, size: f.s ?? 0, mtime: f.m ?? 0 }));
+async function preScan() {
+  const r = await fetch('/data-manifest', { cache: 'no-cache' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const files = preFiles(await r.json());
+  let total = 0, have = 0, dir = null;
+  try { dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('cache'); } catch { /* nothing cached yet */ }
+  for (const f of files) {
+    total += f.size;
+    if (!dir) continue;
+    try {
+      const m = new Uint8Array(await (await (await dir.getFileHandle(preKey(f) + '.have')).getFile()).arrayBuffer());
+      const nb = Math.ceil(f.size / PRE_BLOCK);
+      if (m.length === nb) for (let i = 0; i < nb; i++) if (m[i]) have += Math.min(PRE_BLOCK, f.size - i * PRE_BLOCK);
+    } catch { /* this file is not cached */ }
+  }
+  return { have, total };
+}
+function preRender() {
+  const box = $('#pre'); if (!box) return;
+  box.hidden = !GAME.predownload || PRE.state === 'unavailable';
+  if (box.hidden) return;
+  const fmt = n => (n >= 1073741824 ? nf().format(n / 1073741824) + ' GB' : nf().format(n / 1048576) + ' ' + t('mb'));
+  const pct = PRE.total ? Math.min(100, PRE.have / PRE.total * 100) : 0;
+  $('#pre-fill').style.width = pct + '%'; $('#pre-bar').setAttribute('aria-valuenow', String(Math.round(pct)));
+  let msg = '';
+  if (PRE.state === 'running') {
+    const left = PRE.rate > 0 ? Math.ceil((PRE.total - PRE.have) / PRE.rate / 60) : 0;
+    msg = t('pre_have') + ' ' + fmt(PRE.have) + ' ' + t('cc_of') + ' ' + fmt(PRE.total)
+      + (PRE.rate > 0 ? ' · ' + nf().format(PRE.rate / 1048576) + ' ' + t('mb') + '/s' + (left ? ' · ' + t('pre_left') + ' ~' + left + ' min' : '') : '');
+  } else if (PRE.state === 'done') msg = t('pre_done') + ' (' + fmt(PRE.total) + ')';
+  else if (PRE.state === 'error') msg = t('pre_err') + ' ' + PRE.err;
+  else if (PRE.total) msg = (PRE.have > 0 ? t('pre_have') + ' ' + fmt(PRE.have) + ' ' + t('cc_of') + ' ' + fmt(PRE.total) + '. ' : '') + t('pre_note').replace('{n}', fmt(Math.max(0, PRE.total - PRE.have)));
+  $('#pre-info').textContent = msg;
+  const go = $('#pre-go'); go.hidden = PRE.state === 'done';
+  go.textContent = PRE.state === 'running' ? t('pre_stop') : (PRE.have > 0 ? t('pre_cont') : t('pre_go'));
+}
+function preStart() {
+  if (PRE.w) return;
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch { /* the browser decides */ }
+  let w;
+  try { w = PRE.w = new Worker('/host/predownload-worker.js', { type: 'module', name: 'predownload' }); }
+  catch (e) { PRE.state = 'error'; PRE.err = String(e && e.message || e); preRender(); return; }
+  PRE.state = 'running'; PRE.err = ''; PRE.samples = []; PRE.rate = 0;
+  w.onmessage = e => {
+    if (w !== PRE.w) return;
+    const m = e.data;
+    if (m.t === 'progress') {
+      const now = performance.now();
+      PRE.samples.push({ t: now, have: m.have });
+      while (PRE.samples.length > 2 && now - PRE.samples[0].t > 10000) PRE.samples.shift();
+      const a = PRE.samples[0], span = (now - a.t) / 1000;
+      PRE.have = m.have; PRE.total = m.total; PRE.rate = span >= 2 ? (m.have - a.have) / span : 0;
+    } else if (m.t === 'done') { w.terminate(); PRE.w = null; PRE.state = 'done'; PRE.have = m.have; PRE.total = m.total; PRE.rate = 0; }
+    else if (m.t === 'error') { w.terminate(); PRE.w = null; PRE.state = 'error'; PRE.err = m.msg; PRE.rate = 0; }
+    else if (m.t === 'stopped' && PRE.onStopped) PRE.onStopped();
+    preRender();
+  };
+  w.onerror = e => { if (w !== PRE.w) return; w.terminate(); PRE.w = null; PRE.state = 'error'; PRE.err = e.message || 'the download stopped unexpectedly'; PRE.rate = 0; preRender(); };
+  w.postMessage({ t: 'start', manifestUrl: '/data-manifest', dataBase: '/data/', language: 'en', texpack: '' });
+  preRender();
+}
+// stop it and wait until its files are closed (a few seconds at most), then count what the cache holds
+function preStop() {
+  const w = PRE.w;
+  if (!w) return Promise.resolve();
+  return new Promise(res => {
+    const fin = () => { clearTimeout(tm); w.terminate(); if (PRE.w === w) PRE.w = null; PRE.onStopped = null; PRE.state = 'idle'; res(); };
+    const tm = setTimeout(fin, 3000);
+    PRE.onStopped = fin; w.postMessage({ t: 'stop' });
+  }).then(async () => { try { const s = await preScan(); PRE.have = s.have; PRE.total = s.total; } catch { /* the numbers stay */ } PRE.rate = 0; preRender(); });
+}
+async function preInit() {
+  if (!GAME.predownload) return;
+  try {
+    const s = await preScan(); PRE.have = s.have; PRE.total = s.total;
+    PRE.state = s.total > 0 && s.have >= s.total ? 'done' : 'idle';
+    if (!s.total) PRE.state = 'unavailable';
+  } catch { PRE.state = 'unavailable'; }
+  preRender();
+}
+$('#pre-go').addEventListener('click', () => { if (PRE.w) void preStop(); else preStart(); });
+
+// ---- formulář ----
+const name = $('#name'), err = $('#err');
+name.value = store.get(GAME.storeKey) || '';
+$('#res').value = store.get(GAME.id + '-res') || '';
+$('#touch').value = store.get(GAME.id + '-touch') || '';
+try { const sv = JSON.parse(store.get(GAME.id + '-opts') || '{}'); for (const k of OPTS) $('#o-' + k).checked = !!sv[k]; } catch {}
+if (/[?&]debug/.test(location.search)) $('#adv').open = true;
+let forced = false;
+$('#force').addEventListener('click', () => { forced = true; $('#f').requestSubmit(); });
+$('#f').addEventListener('submit', e => {
+  e.preventDefault();
+  const n = name.value.trim();
+  if (!/^[A-Za-z0-9_-]{2,15}$/.test(n)) { err.textContent = t('badname'); name.focus(); return; }
+  err.textContent = '';
+  store.set(GAME.id + '-opts', JSON.stringify(optsGet()));
+  store.set(GAME.storeKey, n); store.set(GAME.id + '-res', $('#res').value); store.set(GAME.id + '-touch', $('#touch').value);
+  const f = forced; forced = false;
+  preStop().then(() => launch(n, f));
+});
+name.addEventListener('input', () => { err.textContent = ''; });
+$('#lang').addEventListener('click', () => { lang = lang === 'cs' ? 'en' : 'cs'; store.set('landing-lang', lang); render(); });
+
+render();
+runChecks();
+probe();
+preInit();
 </script>
 </body>
 </html>

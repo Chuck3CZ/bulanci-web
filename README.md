@@ -13,6 +13,9 @@ Built on [cmr05-web](https://github.com/Chuck3CZ/cmr05-web) (same lifter and run
 **Status:** the main menu and the game setup run in Chrome; starting a round does not work yet. The plan and the
 state are in [docs/PLAN.md](docs/PLAN.md).
 
+The start page (`web/landing.html`: browser check, loading ring, options, cache) and the loading overlay on the game's
+page (`web/loading.js`) come from [cmr05-web](https://github.com/Chuck3CZ/cmr05-web).
+
 ## What you need
 
 - **The game:** `bulanci.exe` 1.80 (one file, its data appended; SHA-256 in `gen.sh`). Other versions will not work.

@@ -6,6 +6,7 @@
 import * as esbuild from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 const watch = process.argv.includes('--watch');
 const DIST = 'dist', DEV = 'dist-dev';
 const opts = {
@@ -29,9 +30,10 @@ const opts = {
 };
 for (const [k, v] of Object.entries(opts.entryPoints)) if (!fs.existsSync(v)) delete opts.entryPoints[k];
 // WC3: until the player's page exists (index.html and src/app's shell), only the host, its workers and the test
-// pages are built; nfsu2-web's main.ts and play page import app modules this port left out.
+// pages are built; nfsu2-web's main.ts and play page import app modules this port left out.  The predownload worker
+// (src/host/predownload-worker.ts) stands alone and is built too: the start page (landing.html) runs it.
 const HAVE_APP = fs.existsSync('index.html');
-if (!HAVE_APP) for (const k of ['main', 'sw', 'test/play', 'test/aicheck', 'host/predownload-worker']) delete opts.entryPoints[k];
+if (!HAVE_APP) for (const k of ['main', 'sw', 'test/play', 'test/aicheck']) delete opts.entryPoints[k];
 
 // test pages and source maps go to dist-dev (same relative path: /test/x.js, /main.js.map); the rest to dist
 const devOnly = rel => rel.startsWith('test/') || rel.endsWith('.map');
@@ -48,6 +50,8 @@ fs.rmSync(path.join(DIST, 'test'), { recursive: true, force: true });
 for (const f of fs.existsSync(DIST) ? fs.readdirSync(DIST, { recursive: true }) : []) if (String(f).endsWith('.map')) fs.rmSync(path.join(DIST, String(f)));
 fs.mkdirSync(path.join(DEV, 'test'), { recursive: true });
 fs.mkdirSync(DIST, { recursive: true });
+// the player's loading overlay on the game's page (loading.js, a classic script before hostcheck.js)
+fs.copyFileSync('loading.js', path.join(DEV, 'test', 'loading.js'));
 // the start page (its script and stylesheet are main.js / main.css), and its files as they are (src/static: the
 // app's manifest and icons, for installing it on a phone's home screen or as a desktop app)
 if (HAVE_APP) {
@@ -59,7 +63,9 @@ fs.rmSync(path.join(DIST, 'lang'), { recursive: true, force: true });
 fs.mkdirSync(path.join(DIST, 'lang'));
 if (fs.existsSync('src/app/lang')) for (const f of fs.readdirSync('src/app/lang')) if (f.endsWith('.json'))
   fs.writeFileSync(path.join(DIST, 'lang', f), JSON.stringify(JSON.parse(fs.readFileSync(path.join('src/app/lang', f), 'utf8'))));
-const page = name => `<!doctype html><meta charset=utf-8><title>${name}</title><script type=module src="/test/${name}.js"></script>`;
+// loading.js is named by its content (?v=): a browser or a proxy that kept an older one cannot run it for the new page
+const LOADV = crypto.createHash('sha1').update(fs.readFileSync('loading.js')).digest('hex').slice(0, 8);
+const page = name => `<!doctype html><meta charset=utf-8><title>${name}</title>${name === 'hostcheck' ? `<script src="/test/loading.js?v=${LOADV}"></script>` : ''}<script type=module src="/test/${name}.js"></script>`;
 for (const name of ['play', 'hostcheck', 'shadercheck', 'aicheck'].filter(n => opts.entryPoints['test/' + n])) fs.writeFileSync(path.join(DEV, 'test', `${name}.html`), page(name));
 // the player's page takes its address's test parameters only from a server that serves this (--dev: shell.ts)
 fs.writeFileSync(path.join(DEV, 'test', 'dev.json'), '{"dev":true}\n');
