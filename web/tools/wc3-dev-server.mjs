@@ -130,8 +130,9 @@ lan.on('connection', ws => {
 });
 
 const server = http.createServer((req, res) => {
-  const url = new URL(req.url, 'http://x');
-  const p = decodeURIComponent(url.pathname);
+  // a request line that is not a path ("//", a bad %-escape) must not take the server down
+  let url, p;
+  try { url = new URL(req.url, 'http://x'); p = decodeURIComponent(url.pathname); } catch { res.writeHead(400, ISOLATION).end('bad request'); return; }
   // the test page's log (hostcheck.ts ?logpost): out/browser.log, started over by a new run
   // the test page's screenshot (hostcheck.ts ?gpu&shot=N): out/shot.png, replaced each time
   if (req.method === 'POST' && p === '/shot') {
@@ -193,7 +194,8 @@ const server = http.createServer((req, res) => {
   res.writeHead(404, ISOLATION).end('not found');
 });
 server.on('upgrade', (req, sock, head) => {
-  if (new URL(req.url, 'http://x').pathname !== '/lan') return sock.destroy();
+  let lanPath = ''; try { lanPath = new URL(req.url, 'http://x').pathname; } catch { /* bad */ }
+  if (lanPath !== '/lan') return sock.destroy();
   lan.handleUpgrade(req, sock, head, ws => lan.emit('connection', ws, req));
 });
 server.listen(PORT, HOST, () => console.log(`[dev-server] http://${HOST}:${PORT}/`));
