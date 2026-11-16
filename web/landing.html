@@ -759,7 +759,11 @@ name.value = store.get(GAME.storeKey) || '';
 { const j = new URLSearchParams(location.search).get('jmeno'); if (j && /^[A-Za-z0-9_-]{2,15}$/.test(j)) name.value = j; }   // back from /hra/<name>
 $('#res').value = store.get(GAME.id + '-res') || '';
 $('#touch').value = store.get(GAME.id + '-touch') || '';
-try { const sv = JSON.parse(store.get(GAME.id + '-opts') || '{}'); for (const k of OPTS) $('#o-' + k).checked = !!sv[k]; } catch {}
+// the switches as saved; "keep running in a hidden tab" is on unless the player turned it off after it became the default
+// (OPTS_V 2): a hidden tab otherwise stalls the long load and the network game
+const OPTS_ON = { bg: true }, OPTS_V = 2;
+{ let sv = {}; try { sv = JSON.parse(store.get(GAME.id + '-opts') || '{}'); } catch {}
+  for (const k of OPTS) $('#o-' + k).checked = sv.v >= OPTS_V && k in sv ? !!sv[k] : (k in OPTS_ON ? OPTS_ON[k] : !!sv[k]); }
 if (/[?&]debug/.test(location.search)) $('#adv').open = true;
 // ---- účet z rozcestníku (/whoami): na serveru s účty hraje jen schválený hráč, a to pod jménem z účtu ----
 let acct = { hub: false };
@@ -913,7 +917,7 @@ $('#f').addEventListener('submit', e => {
   if (acct.hub && !(acct.me && acct.me.ok)) { err.textContent = acct.me ? t('ac_wait').replace('{n}', acct.me.nick) : t('ac_login') + new URL(acct.login).host; return; }
   if (!/^[A-Za-z0-9_-]{2,15}$/.test(n)) { err.textContent = t('badname'); name.focus(); return; }
   err.textContent = '';
-  store.set(GAME.id + '-opts', JSON.stringify(optsGet()));
+  store.set(GAME.id + '-opts', JSON.stringify({ ...optsGet(), v: OPTS_V }));
   store.set(GAME.storeKey, n); store.set(GAME.id + '-res', $('#res').value); store.set(GAME.id + '-touch', $('#touch').value);
   const f = forced; forced = false;
   preStop().then(() => syAuto().catch(() => {})).then(() => launch(n, f));
