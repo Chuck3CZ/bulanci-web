@@ -16,7 +16,8 @@ import {
   BLOCK, CACHE_DIR, aheadFiles, blockCount, blockLen, blockRuns, dataUrl, manifestFiles, openCacheFile, putBlock, runUrl, scanCache,
   type CacheFile, type DataFile, type Manifest,
 } from './datacache';
-import { fmtBytes } from '../app/checks';
+// (a size for the messages: not imported from the page's app/checks, so the worker stands alone in its bundle)
+const fmtBytes = (n: number) => n >= 1073741824 ? (n / 1073741824).toFixed(1) + ' GB' : (n / 1048576).toFixed(0) + ' MB';
 
 export type ToPredownload = { t: 'start'; manifestUrl: string; dataBase: string; language: string; texpack: string } | { t: 'stop' };
 export type FromPredownload =

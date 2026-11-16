@@ -7,4 +7,4 @@ COPY app/ /app/
 RUN cd /app/web && npm install --omit=dev --no-audit --no-fund ws@8.22.0 && mkdir -p /app/out
 USER node
 EXPOSE 8088
-CMD ["node", "/app/web/tools/wc3-dev-server.mjs", "--data", "/game", "--wasm", "/module/wc3.wasm", "--out", "/logs", "--port", "8088", "--host", "0.0.0.0"]
+CMD ["node", "/app/web/tools/wc3-dev-server.mjs", "--data", "/game", "--wasm", "/module/wc3.wasm", "--out", "/logs", "--port", "8088", "--host", "0.0.0.0", "--game", "bulanci", "--save-prefix", "bulanci-"]

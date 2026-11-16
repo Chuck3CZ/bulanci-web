@@ -3,6 +3,7 @@
 #   BULANCI_MODULE=/share/Public/Bulanci/module   the folder with wc3.wasm
 #   BULANCI_LOGS=/share/Public/Bulanci/logs       the test pages' logs
 #   BULANCI_PORT=8088                             8080 is QTS's own, 8086/8087 the WC3 and CMR trials
+#   BULANCI_HUB=http://192.168.16.16:8085          the games hub (accounts); empty: open
 #   TUNNEL_TOKEN=...                              only for the tunnel profile
 # then:  docker compose up -d --build            (and with HTTPS from Cloudflare: docker compose --profile tunnel up -d)
 services:
@@ -15,6 +16,9 @@ services:
       - ${BULANCI_GAME:?set BULANCI_GAME in .env}:/game:ro
       - ${BULANCI_MODULE:?set BULANCI_MODULE in .env}:/module:ro
       - ${BULANCI_LOGS:?set BULANCI_LOGS in .env}:/logs
+    # player accounts (the games hub, its api/server.mjs): BULANCI_HUB=<hub url>; empty: no accounts, open as before
+    environment:
+      HUB: ${BULANCI_HUB:-}
     logging: { driver: json-file, options: { max-size: 10m, max-file: "3" } }
   # HTTPS for the players (WebGPU and the game's threads need a secure page): a Cloudflare Tunnel, its public
   # hostname's service http://server:8088 (Cloudflare Zero Trust, Networks, Tunnels)

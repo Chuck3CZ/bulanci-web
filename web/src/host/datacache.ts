@@ -43,7 +43,8 @@ function gameFiles(files: DataFile[], language: string, texpack: string): DataFi
     return p[0] === 'langpacks' ? p[1] === language : !own.has(p.join('/'));
   });
 }
-const isMovie = (f: DataFile) => { const p = parts(f); return (p[0] === 'langpacks' ? p[2] : p[0]) === 'movies'; };
+// CMR 2005's videos (data/Videos/*.wmv, 169 MB) are not read in the browser (the game starts with NOVIDEO): not fetched ahead
+const isMovie = (f: DataFile) => { const p = parts(f); return (p[0] === 'langpacks' ? p[2] : p[0]) === 'movies' || f.path.toLowerCase().endsWith('.wmv'); };
 /** The AV1 copy of a movie (tools/movies_av1.py, played where the browser decodes AV1: movie.ts): MOVIES/<name>.vp6 ->
  *  MOVIES/AV1/<name>.vp6, the same in a language pack's MOVIES; null for any other path. */
 export function av1Path(path: string): string | null {

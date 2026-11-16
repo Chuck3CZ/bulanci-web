@@ -312,6 +312,28 @@ class Link implements NetLink {
   private failed = 0;
   /** the link went without the page letting it go (onclose): the next welcome is onBack */
   private lost = false;
+  /** a switch that keeps this page's place through a lost link (its welcome's "replay":1, the server's own switch): the
+   *  binary messages each side sent are counted and kept until the other side says it has them, and after a resume
+   *  what did not arrive goes again, so LAN play's connections outlive a dropped link (a phone's Wi-Fi, the tunnel):
+   *  C is not told the link went, it only waits.  A switch of before: as before (the link's loss resets them). */
+  private replay = false;
+  /** binary messages taken from the switch in this session */
+  private rxCount = 0;
+  /** binary messages sent in this session the switch has not said it has, the first of them number txBase */
+  private txBuf: Frame[] = [];
+  private txBase = 0;
+  private txBytes = 0;
+  /** the link is down and the place held (replay): since when (0: not), and the timer that gives up */
+  private holding = 0;
+  private holdTimer: ReturnType<typeof setTimeout> | null = null;
+  /** the last message from the switch, any (performance.now()) */
+  private lastRx = 0;
+  private onVisible = () => {
+    // a phone's page shown again: reconnect now, not when the back-off says
+    if (document.visibilityState === 'visible' && this.reconnectTimer && !this.closed) {
+      clearTimeout(this.reconnectTimer); this.reconnectTimer = null; this.st.reconnects++; this.connect();
+    }
+  };
   private lastDownLog = -Infinity;
   /** the switch refused us as full (close 1013 "LAN full"), or put us in line: told once, and again when a place frees
    *  up */
@@ -344,6 +366,38 @@ class Link implements NetLink {
 
   constructor(private proc: GameProcess, private o: NetOptions) {
     this.online = new Promise(r => (this.resolveOnline = r));
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.onVisible);
+  }
+
+  /** a binary message to the switch: with replay kept until the switch has it (and sent when the link is back) */
+  private sendBin(m: Frame) {
+    if (this.replay) {
+      this.txBuf.push(m); this.txBytes += m.byteLength;
+      if (this.txBytes > HOLD_BYTES) {
+        if (this.holding) { this.dropHold('more waited to be sent than is kept'); return; }
+        this.replay = false; this.txBuf = []; this.txBytes = 0;
+        this.log('the switch does not say what it got: a lost link resets LAN play again');
+      }
+    }
+    const ws = this.ws;
+    if (ws && ws.readyState === WebSocket.OPEN && this.state === 'online') ws.send(m);
+  }
+  /** the switch has our messages up to number n */
+  private acked(n: number) {
+    while (this.txBase < n && this.txBuf.length) { this.txBytes -= this.txBuf.shift()!.byteLength; this.txBase++; }
+  }
+  private endHold() {
+    if (this.holdTimer) { clearTimeout(this.holdTimer); this.holdTimer = null; }
+    this.holding = 0;
+  }
+  /** the held game is let go: C hears the link went (its connections are reset), as without replay */
+  private dropHold(why: string) {
+    if (!this.holding) return;
+    this.endHold();
+    this.replay = false; this.txBuf = []; this.txBytes = 0;
+    this.log(`the held game is let go (${why}): LAN play's connections are reset`);
+    if (this.state === 'online') { this.generation++; for (const ep of this.eps()) this.publishOnline(ep); }
+    else this.setPage(this.state === 'connecting' ? P.NET_PAGE_CONNECTING : P.NET_PAGE_OFFLINE);
   }
 
   private log(s: string) { this.o.log?.(`[net] ${s}`); }
@@ -372,7 +426,7 @@ class Link implements NetLink {
     if (name === 'roam') this.publishCrews(ep);
     if (name === 'lan') this.log('LAN play attached (the game opened its LAN screens)');
     this.publishPeers(ep);
-    if (this.state === 'online') this.publishOnline(ep);
+    if (this.state === 'online' || this.holding) this.publishOnline(ep);
     else Atomics.store(ep.i32, P.W_PAGE_STATE, this.state === 'connecting' ? P.NET_PAGE_CONNECTING
       : this.state === 'offline' || this.state === 'queued' ? P.NET_PAGE_OFFLINE
       : this.state === 'idle' || this.state === 'away' ? P.NET_PAGE_IDLE : P.NET_PAGE_NONE);
@@ -428,6 +482,7 @@ class Link implements NetLink {
     for (const ep of this.eps()) Atomics.store(ep.i32, P.W_PAGE_STATE, P.NET_PAGE_IDLE);
     if (this.eps().some(ep => ep.wants())) {
       if (this.state === 'online') for (const ep of this.eps()) this.publishOnline(ep);
+      else if (this.holding) for (const ep of this.eps()) this.publishOnline(ep);
       else this.setPage(this.state === 'connecting' ? P.NET_PAGE_CONNECTING : P.NET_PAGE_OFFLINE);
       return;
     }
@@ -444,6 +499,7 @@ class Link implements NetLink {
     if (ws) { ws.onopen = null; ws.onmessage = null; ws.onerror = null; ws.onclose = null; ws.close(1000, 'idle'); }
     this.pings.clear();
     this.state = to; this.token = ''; this.full = false; this.backoff = 250; this.failed = 0;
+    this.endHold(); this.replay = false; this.txBuf = []; this.txBytes = 0;
     // (a page in line leaves it: its close is 1000 "idle")
     if (this.ticket || this.queuedAt) { this.ticket = ''; this.queuedAt = 0; this.o.onQueue?.(null); }
     this.setPage(P.NET_PAGE_IDLE);
@@ -506,7 +562,7 @@ class Link implements NetLink {
     const resume = !!(this.vipNum && this.token) || !!this.ticket;
     u.searchParams.set('queue', '');
     if (resume) u.searchParams.set('resume', '');
-    this.state = 'connecting'; this.setPage(P.NET_PAGE_CONNECTING);
+    this.state = 'connecting'; if (!this.holding) this.setPage(P.NET_PAGE_CONNECTING);
     this.refs = new Map();
     this.fp = new Map();
     const ws = new WebSocket(u.href);
@@ -520,15 +576,23 @@ class Link implements NetLink {
       // a friend's car state by its fields, rounded (proto.ts fpredTake; `fp`)
       this.lanSent = this.lanOpen();
       ws.send(JSON.stringify({ t: 'hello', name: this.o.name ?? 'player', deltas: 1, lan: this.lanSent ? 1 : 0, bundle: 1, compact: 1, delta: 1, fpred: 1,
+        replay: 1, ...(this.holding ? { rx: this.rxCount } : {}),
         ...(this.o.id ? { id: this.o.id } : {}),
         ...(this.vipNum && this.token ? { vip: P.ipStr(this.vipNum), token: this.token } : {}), ...(this.ticket ? { ticket: this.ticket } : {}) }));
       this.pingTimer = setInterval(() => this.ping(), this.o.pingMs ?? 2000);
     };
     ws.onmessage = (e) => {
+      this.lastRx = performance.now();
       if (typeof e.data === 'string') { let m: any; try { m = JSON.parse(e.data); } catch { return; } this.control(m); }
       else this.rx(e.data as ArrayBuffer);
     };
-    ws.onclose = (e) => {
+    ws.onclose = (e) => this.linkLost(ws, e.code, e.reason);
+    ws.onerror = () => { /* onclose follows */ };
+  }
+  /** the link went (its close, or no word from the switch: ping) */
+  private linkLost(ws: WebSocket, code: number, reason: string) {
+    const e = { code, reason };
+    {
       if (this.ws !== ws) return;
       this.ws = null;
       if (this.pingTimer) { clearInterval(this.pingTimer); this.pingTimer = null; }
@@ -545,6 +609,20 @@ class Link implements NetLink {
         return;
       }
       const was = this.state;
+      if (this.replay && this.vipNum && this.token && (was === 'online' || this.holding) && e.code !== 1013) {
+        // the place is held: C goes on as if the link were up, what it sends waits here
+        this.state = 'offline';
+        if (!this.holding) {
+          this.holding = now();
+          this.holdTimer = setTimeout(() => this.dropHold(`not back within ${HOLD_MS / 1000} s`), HOLD_MS);
+          this.log(`lost the switch (${e.code}${e.reason ? ' ' + e.reason : ''}): the game waits up to ${HOLD_MS / 1000} s while the page reconnects`);
+          this.backoff = 250;
+        }
+        this.failed++;
+        this.reconnectTimer = setTimeout(() => { this.reconnectTimer = null; this.st.reconnects++; this.connect(); }, this.backoff);
+        this.backoff = Math.min(this.backoff * 2, 2000);
+        return;
+      }
       this.state = 'offline'; this.setPage(P.NET_PAGE_OFFLINE);
       this.lost = true;
       if (e.code === 1013 && !this.full) {
@@ -563,16 +641,26 @@ class Link implements NetLink {
       this.failed++;
       this.reconnectTimer = setTimeout(() => { this.reconnectTimer = null; this.st.reconnects++; this.connect(); }, this.backoff);
       this.backoff = Math.min(this.backoff * 2, 5000);
-    };
-    ws.onerror = () => { /* onclose follows */ };
+    }
   }
   private control(m: any) {
     if (m.t === 'welcome' && typeof m.vip === 'number') {
       const vip = m.vip >>> 0, mask = P.ipNum(String(m.mask ?? '255.255.255.0')) ?? 0xffffff00;
       const again = this.vipNum === vip;
-      this.vipNum = vip; this.vip = P.ipStr(vip); this.netmask = mask; this.generation++;
+      // the same session again: the switch kept the place and says how many of our messages it has
+      const resumed = !!this.holding && this.replay && m.replay === 1 && m.resumed === 1 && again && typeof m.rx === 'number' &&
+        m.rx >= this.txBase && m.rx <= this.txBase + this.txBuf.length;
+      if (this.holding && !resumed) this.dropHold('the server did not keep the place');
+      this.vipNum = vip; this.vip = P.ipStr(vip); this.netmask = mask;
+      if (!resumed) this.generation++;
       this.token = typeof m.token === 'string' ? m.token : '';
       this.bundles = m.bundle === 1;
+      if (resumed) {
+        const s = ((now() - this.holding) / 1000).toFixed(1);
+        this.endHold(); this.acked(m.rx);
+        for (const b of this.txBuf) this.ws!.send(b);
+        this.log(`back on the switch after ${s} s: the game goes on (${this.txBuf.length} message(s) sent again)`);
+      } else { this.replay = m.replay === 1; this.rxCount = 0; this.txBuf = []; this.txBase = 0; this.txBytes = 0; }
       this.state = 'online'; this.backoff = 250; this.failed = 0; this.st.connections++;
       for (const ep of this.eps()) { this.publishPeers(ep); this.publishOnline(ep); }
       this.log(`on the virtual LAN as ${this.vip}${this.st.connections > 1 ? (again ? ' (the same address again)' : ' (a new address)') : ''}`);
@@ -585,6 +673,7 @@ class Link implements NetLink {
       if (this.lost) { this.lost = false; this.o.onBack?.(); }
       this.resolveOnline(this.vip);
     } else if (m.t === 'queue' && Number.isInteger(m.pos) && Number.isInteger(m.of)) {
+      this.dropHold('the server is full');
       // the server is full: in line for a place (its welcome comes when it is our turn)
       if (typeof m.ticket === 'string') this.ticket = m.ticket;
       if (this.state !== 'queued') {
@@ -610,6 +699,7 @@ class Link implements NetLink {
       for (const p of m.peers) this.peerMap.set(p.vip >>> 0, { name: String(p.name ?? ''), server: !!p.server });
       this.peersUpdated();
     } else if (m.t === 'pong' && typeof m.id === 'number') {
+      if (this.replay && typeof m.rx === 'number') this.acked(m.rx);
       const t0 = this.pings.get(m.id);
       if (t0 === undefined) return;
       this.pings.delete(m.id);
@@ -638,10 +728,21 @@ class Link implements NetLink {
   }
   private ping() {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    if (this.replay) {
+      // a ping unanswered this long with nothing at all from the switch since: the link is dead without a close
+      const t = now();
+      for (const t0 of this.pings.values())
+        if (t - t0 > STALE_MS && this.lastRx < performance.now() - (t - t0)) {
+          const ws = this.ws; ws.onopen = null; ws.onmessage = null; ws.onerror = null; ws.onclose = null;
+          try { ws.close(4000, 'stale'); } catch { /* gone */ }
+          this.linkLost(ws, 4000, `no answer for ${Math.round((t - t0) / 1000)} s`);
+          return;
+        }
+    }
     const id = ++this.pingSeq;
     this.pings.set(id, now());
     if (this.pings.size > 16) this.pings.delete(this.pings.keys().next().value!);
-    this.ws.send(JSON.stringify({ t: 'ping', id }));
+    this.ws.send(JSON.stringify({ t: 'ping', id, ...(this.replay ? { rx: this.rxCount } : {}) }));
   }
 
   // ---- C -> switch ----
@@ -679,7 +780,8 @@ class Link implements NetLink {
     const head = Atomics.load(i32, P.W_TX_HEAD);
     if (tail === head) return;
     const c0 = performance.now();
-    const txOff = i32[P.W_TX_OFF], ws = this.ws, open = !!ws && ws.readyState === WebSocket.OPEN && this.state === 'online';
+    const txOff = i32[P.W_TX_OFF], ws = this.ws, live = !!ws && ws.readyState === WebSocket.OPEN && this.state === 'online';
+    const open = live || !!this.holding;                    // held: what C sends waits for the link (sendBin)
     const t = now(), bundle = open && this.bundles ? new TxBundle() : null;
     let waitSum = 0, waitMax = ep.f64[P.D_TX_WAIT_MS_MAX], n = 0;
     while (tail !== head) {
@@ -706,7 +808,7 @@ class Link implements NetLink {
         fv.setUint16(P.F_DPORT, dv.getUint16(s + P.S_DST_PORT, true));
         f.set(ep.u8.subarray(s + P.S_DATA, s + P.S_DATA + len), P.F_DATA);   // a copy: a socket cannot send shared memory
         if (ep.kind === 'roam' && f[P.F_KIND] === P.NET_KIND_UDP) sentNow(f, len, t - dv.getFloat64(s + P.S_T_MS, true));
-        if (bundle) bundle.add(f, dst >>> 0); else ws!.send(f);
+        if (bundle) bundle.add(f, dst >>> 0); else this.sendBin(f);
         this.st.framesOut++; this.st.bytesOut += len;
         if (ep.kind === 'lan') this.st.lanOut++;
         const w = t - dv.getFloat64(s + P.S_T_MS, true);
@@ -715,8 +817,8 @@ class Link implements NetLink {
       tail = (tail + 1) | 0;
       Atomics.store(i32, P.W_TX_TAIL, tail);
     }
-    if (bundle) for (const m of bundle.messages()) ws!.send(m);
-    if (open) ep.sent = performance.now();
+    if (bundle) for (const m of bundle.messages()) this.sendBin(m);
+    if (live) ep.sent = performance.now();
     if (n) {
       ep.f64[P.D_TX_WAIT_MS_SUM] += waitSum; ep.f64[P.D_TX_WAIT_MS_MAX] = waitMax;
       Atomics.add(i32, P.W_TX_WAIT_N, n);
@@ -727,6 +829,7 @@ class Link implements NetLink {
   // ---- switch -> C ----
   private rx(b: ArrayBuffer) {
     const c0 = performance.now();
+    if (this.replay) this.rxCount++;
     const u = new Uint8Array(b);
     if (u.length >= 4 && u[0] === P.NET_KIND_BUNDLE) {
       // each frame on its own (a copy: a LAN TCP frame may wait in a queue), C rung once for all of them
@@ -814,7 +917,7 @@ class Link implements NetLink {
     rv.setUint16(P.F_SPORT, fv.getUint16(P.F_DPORT)); rv.setUint16(P.F_DPORT, fv.getUint16(P.F_SPORT));
     r[P.F_DATA] = P.NET_LAN_TCP_RST; r[P.F_DATA + 1] = 64;
     r.set(new Uint8Array(b, P.F_DATA + 4, 4), P.F_DATA + 4);              // the connection id
-    ws.send(r);
+    this.sendBin(r);
     this.st.lanRefused++;
   }
 
@@ -841,6 +944,8 @@ class Link implements NetLink {
     // send what C queued last (free roam's BYEs, LAN play's FIN/RST) before the socket goes
     for (const ep of this.eps()) this.drainTx(ep);
     this.closed = true; this.state = 'closed';
+    this.endHold();
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', this.onVisible);
     if (this.queuedAt) { this.queuedAt = 0; this.o.onQueue?.(null); }
     if (this.pingTimer) { clearInterval(this.pingTimer); this.pingTimer = null; }
     if (this.retryTimer) { clearTimeout(this.retryTimer); this.retryTimer = null; }
@@ -858,6 +963,9 @@ class Link implements NetLink {
 }
 
 const now = () => performance.timeOrigin + performance.now();   // the runtime's monotonic clock
+/** replay: how long a lost link holds the game (the server's switch holds the place a little longer), what may wait
+ *  to be sent meanwhile, and how long an unanswered ping with nothing else from the switch means the link is dead */
+const HOLD_MS = 120_000, HOLD_BYTES = 32 << 20, STALE_MS = 10_000;
 // Atomics.waitAsync (ES2024; the project's TypeScript lib is ES2023)
 const waitAsync = (Atomics as unknown as { waitAsync(a: Int32Array, i: number, v: number, t?: number):
   { async: false; value: 'not-equal' | 'timed-out' } | { async: true; value: Promise<'ok' | 'timed-out'> } }).waitAsync;
