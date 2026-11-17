@@ -37,7 +37,7 @@ if (gpu) { canvas.width = resW; canvas.height = resH; canvas.style.cssText = 'di
            st.textContent = '.wc3wrap:fullscreen{width:100vw!important;max-width:none!important;background:#000;display:flex;align-items:center;justify-content:center}' +
              '.wc3wrap:fullscreen canvas{width:auto!important;height:100vh!important;max-width:100vw!important;object-fit:contain}';
            document.head.append(st); wrap.className = 'wc3wrap';
-           fs.textContent = '⛶ Celá obrazovka'; fs.style.cssText = 'margin:6px 0;font-size:14px';
+           fs.textContent = 'Celá obrazovka'; fs.style.cssText = 'margin:6px 0;font-size:14px';
            fs.onclick = () => { canvas.requestFullscreen({ navigationUI: 'hide' }).then(() => canvas.focus(), e => console.log('fullscreen: ' + e)); };
            const hint = document.createElement('span'); hint.style.cssText = 'margin-left:10px;font:13px system-ui,sans-serif;color:#666';
            hint.textContent = `${resW}×${resH} (?res=ŠxV). Celou obrazovku opustíš podržením Esc.`;
@@ -187,11 +187,14 @@ if (gpu) {
   };
   if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
   const crashed = code !== 0;
+  const svgIcon = (size: number) => crashed
+    ? `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' viewBox='0 0 24 24' fill='none' stroke='#ff8a7a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3 2 20h20z'/><path d='M12 9v5'/><path d='M12 17.2v.3'/></svg>`
+    : `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' viewBox='0 0 24 24' fill='none' stroke='#f0c674' stroke-width='2.2' stroke-linecap='round'><path d='M12 3v8'/><path d='M6.3 6.8a8 8 0 1 0 11.4 0'/></svg>`;
   const end = document.createElement('div');
   const w = canvas.clientWidth || 1280, h = canvas.clientHeight || 720;
   end.style.cssText = `width:${w}px;height:${h}px;max-width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;` +
     `background:radial-gradient(ellipse at center,#1d2230 0%,#08090d 75%);color:#ece9e1;font:16px/1.45 system-ui,sans-serif;text-align:center;border-radius:4px;box-sizing:border-box;padding:24px`;
-  const icon = document.createElement('div'); icon.style.cssText = 'font-size:72px;line-height:1'; icon.textContent = crashed ? '💥' : '⏹';
+  const icon = document.createElement('div'); icon.style.cssText = 'line-height:0'; icon.innerHTML = svgIcon(88);
   const head = document.createElement('div'); head.style.cssText = 'font-size:28px;font-weight:700;color:' + (crashed ? '#ff8a7a' : '#f0c674');
   head.textContent = crashed ? 'Hra spadla' : 'Vypnul jsi hru';
   const text = document.createElement('div'); text.style.cssText = 'max-width:640px;color:#b9b5ab';
@@ -207,15 +210,15 @@ if (gpu) {
     btns.append(b);
   };
   btn('▶ Spustit znovu', true, () => location.reload());
-  btn('⌂ Úvodní stránka', false, () => { location.href = '/'; });
-  if (crashed) btn('💾 Uložit log', false, saveLog);
+  btn('← Úvodní stránka', false, () => { location.href = '/'; });
+  if (crashed) btn('Uložit log', false, saveLog);
   end.append(icon, head, text, btns);
   canvas.replaceWith(end);
   if (me) {
-    // the tab: "⏹ Hra ukončena" and its icon, blinking while the page is out of sight
+    // the tab: "Hra ukončena" with the drawn icon, blinking while the page is out of sight
     const was = document.querySelector<HTMLLinkElement>('link[rel="icon"]'), wasHref = was?.href ?? '';
-    const mark = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>${crashed ? '💥' : '⏹'}</text></svg>`);
-    const label = crashed ? '💥 Hra spadla' : '⏹ Hra ukončena', name = document.title === 'DONE' ? '' : document.title;
+    const mark = 'data:image/svg+xml,' + encodeURIComponent(svgIcon(32));
+    const label = crashed ? 'Hra spadla' : 'Hra ukončena', name = document.title === 'DONE' ? '' : document.title;
     let on = false;
     const show = (x: boolean) => { document.title = x || !name ? label : name; if (was) was.href = x ? mark : wasHref; };
     show(true);
