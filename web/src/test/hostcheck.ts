@@ -176,20 +176,49 @@ log(`EXIT ${code}`); flush(); document.title = 'DONE';
 // the other game threads would stay where the exit left them: a trapped thread keeps the GIL, the rest wait for it
 // (the picture froze, the watchdog reported every 20 s), so they stop with the process
 p.terminate();
-if (gpu && code !== 0) {
-  const box = document.createElement('div');
-  box.style.cssText = 'margin:6px 0;padding:10px 12px;background:#7a1010;color:#fff;font:14px/1.4 system-ui,sans-serif;max-width:1280px';
-  box.textContent = code === 134
-    ? 'Hra spadla (chyba ve hře, kód 134, „TRAP“ v logu). Není to výpadek internetu: stránka po pádu odpojila tento prohlížeč od LAN, '
-      + 'proto ostatním hráčům hra skončila. Ulož si log, obnov stránku (F5) a založte hru znovu.'
-    : `Hra skončila s kódem ${code}. Ulož si log a obnov stránku (F5).`;
-  const save = document.createElement('button'); save.textContent = 'Uložit log'; save.style.cssText = 'margin-left:10px;font-size:14px';
-  save.onclick = () => {
+// the player's page: the frozen last picture gives way to an end screen (what happened, play again, back to the start
+// page), and the tab blinks "Hra ukončena" until the player looks at it; test pages keep the plain "DONE" title
+if (gpu) {
+  const saveLog = () => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([pre.textContent ?? ''], { type: 'text/plain' }));
-    a.download = `wc3-log-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`; a.click();
+    a.download = `log-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   };
-  box.append(save);
-  canvas.after(box);
+  if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+  const crashed = code !== 0;
+  const end = document.createElement('div');
+  const w = canvas.clientWidth || 1280, h = canvas.clientHeight || 720;
+  end.style.cssText = `width:${w}px;height:${h}px;max-width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;` +
+    `background:radial-gradient(ellipse at center,#1d2230 0%,#08090d 75%);color:#ece9e1;font:16px/1.45 system-ui,sans-serif;text-align:center;border-radius:4px;box-sizing:border-box;padding:24px`;
+  const icon = document.createElement('div'); icon.style.cssText = 'font-size:72px;line-height:1'; icon.textContent = crashed ? '💥' : '⏹';
+  const head = document.createElement('div'); head.style.cssText = 'font-size:28px;font-weight:700;color:' + (crashed ? '#ff8a7a' : '#f0c674');
+  head.textContent = crashed ? 'Hra spadla' : 'Vypnul jsi hru';
+  const text = document.createElement('div'); text.style.cssText = 'max-width:640px;color:#b9b5ab';
+  text.textContent = !crashed ? 'Hra skončila. Můžeš ji spustit znovu, nebo se vrátit na úvodní stránku.'
+    : code === 134 ? 'Chyba ve hře (kód 134, „TRAP“ v logu), není to výpadek internetu. Stránka po pádu odpojila tento prohlížeč od LAN, '
+      + 'proto ostatním hráčům hra skončila. Ulož si log a založte hru znovu.'
+    : `Hra skončila s kódem ${code}. Ulož si log a spusť ji znovu.`;
+  const btns = document.createElement('div'); btns.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px';
+  const btn = (label: string, primary: boolean, on: () => void) => {
+    const b = document.createElement('button'); b.textContent = label; b.onclick = on;
+    b.style.cssText = `font:600 15px system-ui,sans-serif;padding:9px 18px;border-radius:8px;cursor:pointer;border:1px solid #d9a441;` +
+      (primary ? 'background:#d9a441;color:#111' : 'background:transparent;color:#d9a441');
+    btns.append(b);
+  };
+  btn('▶ Spustit znovu', true, () => location.reload());
+  btn('⌂ Úvodní stránka', false, () => { location.href = '/'; });
+  if (crashed) btn('💾 Uložit log', false, saveLog);
+  end.append(icon, head, text, btns);
+  canvas.replaceWith(end);
+  if (me) {
+    // the tab: "⏹ Hra ukončena" and its icon, blinking while the page is out of sight
+    const was = document.querySelector<HTMLLinkElement>('link[rel="icon"]'), wasHref = was?.href ?? '';
+    const mark = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>${crashed ? '💥' : '⏹'}</text></svg>`);
+    const label = crashed ? '💥 Hra spadla' : '⏹ Hra ukončena', name = document.title === 'DONE' ? '' : document.title;
+    let on = false;
+    const show = (x: boolean) => { document.title = x || !name ? label : name; if (was) was.href = x ? mark : wasHref; };
+    show(true);
+    setInterval(() => { if (document.hidden) { on = !on; show(on); } else if (!on) { on = true; show(true); } }, 900);
+  }
 }
