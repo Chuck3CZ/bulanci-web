@@ -69,6 +69,12 @@
   .checks small { display: block; color: var(--muted); font-size: 13px; line-height: 1.4; }
   .srv { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); display: grid; gap: 3px; }
   .srv b { color: var(--text); font-weight: 600; }
+  .namefix { font-size: 20px; font-weight: 700; color: var(--text); padding: 4px 0 2px; }
+  .namefix a { font-size: 13px; font-weight: 400; margin-left: 10px; color: var(--accent); }
+  .who { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  .who h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+  .who .pl { display: flex; align-items: center; gap: 6px; margin: 3px 0; color: var(--text); }
+  .who .pl small { color: var(--muted); }
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
   .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
   .dot.off { background: var(--bad); }
@@ -177,7 +183,8 @@
       <div class="field">
         <label for="name" data-t="player"></label>
         <input id="name" type="text" maxlength="15" autocomplete="nickname" autocapitalize="off" spellcheck="false" required pattern="[A-Za-z0-9_\-]{2,15}">
-        <p class="hint" data-t="namehint"></p>
+        <div class="namefix" id="name-fix" hidden></div>
+        <p class="hint" id="name-hint" data-t="namehint"></p>
         <p class="err" id="err" role="alert"></p>
         <p class="hint" id="acct-note" aria-live="polite"></p>
       </div>
@@ -227,6 +234,7 @@
       <h2 data-t="envh"></h2>
       <ul class="checks" id="checks"></ul>
       <div class="srv" id="srv"></div>
+      <div class="who" id="who" hidden></div>
     </div>
   </section>
 
@@ -318,7 +326,7 @@ const UI = {
     c_br: 'Prohlížeč', c_br_warn: 'Hra je testovaná v Chrome a Edge. Jiný prohlížeč nemusí fungovat.',
     c_ptr: 'Myš a klávesnice', c_ptr_warn: 'Vypadá to na dotykové zařízení bez myši. Hra se ovládá myší a klávesnicí.',
     checking: 'kontroluji…',
-    s_mod: 'Modul hry', s_data: 'Herní data na serveru', s_up: 'aktualizováno', s_ok: 'k dispozici', s_no: 'nedostupná', ac_as: 'Hraješ jako {n} (účet z rozcestníku).', ac_login: 'Hrát můžou jen přihlášení hráči. Přihlas se nebo si založ účet na ', ac_wait: 'Účet {n} zatím nemá tuhle hru povolenou. Až ji správce povolí, obnov stránku.', ac_srv: 'Stav serveru uvidíš po přihlášení.', ac_down: 'Server se teď nemůže spojit s rozcestníkem, takže neví, kdo jsi. Zkus to za chvíli znovu.', s_online: 'Hráči online', s_lan: 'připojen k LAN', s_since: 'od', s_nobody: 'Teď nikdo nehraje.', s_modmatch: 'odpovídá stránce', s_stored: 'Modul v tomto prohlížeči', st_checking: 'ověřuji…', st_none: 'není uložený, stáhne se při spuštění', st_have: 'uložený', st_ok: 'uložený, ověřený (souhlasí se serverem)', st_bad: 'uložený, ale POŠKOZENÝ – při spuštění se stáhne znovu', st_old: 'uložená starší verze – při spuštění se stáhne nová', st_unknown: 'nelze zjistit', s_modbad: 'jiná verze než stránka, hra by se nevykreslovala (dej vědět správci)', s_srv: 'Server neodpovídá. Je stránka otevřená z hostitelského serveru?',
+    s_mod: 'Modul hry', s_data: 'Herní data na serveru', s_up: 'aktualizováno', s_ok: 'k dispozici', s_no: 'nedostupná', ac_as: 'Hraješ jako {n} (účet z rozcestníku).', ac_login: 'Hrát můžou jen přihlášení hráči. Přihlas se nebo si založ účet na ', ac_wait: 'Účet {n} zatím nemá tuhle hru povolenou. Až ji správce povolí, obnov stránku.', ac_srv: 'Stav serveru uvidíš po přihlášení.', ac_down: 'Server se teď nemůže spojit s rozcestníkem, takže neví, kdo jsi. Zkus to za chvíli znovu.', s_online: 'Hráči online', w_head: 'Právě hrají', w_none: 'Teď nikdo nehraje.', ac_other: 'jiný účet', s_lan: 'připojen k LAN', s_since: 'od', s_nobody: 'Teď nikdo nehraje.', s_modmatch: 'odpovídá stránce', s_stored: 'Modul v tomto prohlížeči', st_checking: 'ověřuji…', st_none: 'není uložený, stáhne se při spuštění', st_have: 'uložený', st_ok: 'uložený, ověřený (souhlasí se serverem)', st_bad: 'uložený, ale POŠKOZENÝ – při spuštění se stáhne znovu', st_old: 'uložená starší verze – při spuštění se stáhne nová', st_unknown: 'nelze zjistit', s_modbad: 'jiná verze než stránka, hra by se nevykreslovala (dej vědět správci)', s_srv: 'Server neodpovídá. Je stránka otevřená z hostitelského serveru?',
     l_chk: 'Kontrola prohlížeče', l_mod: 'Stažení modulu hry', l_data: 'Připojení k herním datům', l_go: 'Spuštění hry',
     l_sub0: 'Chvilku strpení…', l_sub_mod: 'Stahuji modul hry. Příště se načte z paměti prohlížeče.', l_sub_go: 'Otevírám hru. Další načítání uvidíš na její stránce.',
     l_err_mod: 'Modul se nepodařilo stáhnout.', l_err_modbad: 'Stažený modul je poškozený (nesouhlasí kontrolní součet). Zkus to znovu, případně v Pokročilém smaž uložený modul.', l_err_modsrv: 'Server posílá jinou verzi modulu hry, než ke které patří tahle stránka. Hra by se nevykreslovala správně – dej vědět správci serveru.', mod_redo: 'uložený modul byl poškozený nebo starý – stahuji znovu', mod_ok: 'ověřeno', l_err_data: 'Herní data na serveru nejsou dostupná.',
@@ -342,7 +350,7 @@ const UI = {
     c_br: 'Browser', c_br_warn: 'The game is tested in Chrome and Edge. Another browser may not work.',
     c_ptr: 'Mouse and keyboard', c_ptr_warn: 'This looks like a touch device without a mouse. The game is played with mouse and keyboard.',
     checking: 'checking…',
-    s_mod: 'Game module', s_data: 'Game data on the server', s_up: 'updated', s_ok: 'available', s_no: 'unavailable', ac_as: 'Playing as {n} (the account from the games hub).', ac_login: 'Only signed-in players can play. Sign in or create an account at ', ac_wait: 'The account {n} is not allowed this game yet. Reload the page once the admin allows it.', ac_srv: 'The server status shows after you sign in.', ac_down: 'The server cannot reach the games hub right now, so it does not know who you are. Try again in a moment.', s_online: 'Players online', s_lan: 'on the LAN', s_since: 'since', s_nobody: 'Nobody is playing right now.', s_modmatch: 'matches this page', s_stored: 'Module in this browser', st_checking: 'checking…', st_none: 'not stored, downloaded at start', st_have: 'stored', st_ok: 'stored, verified (matches the server)', st_bad: 'stored but DAMAGED: downloaded again at start', st_old: 'an older version stored: the new one is downloaded at start', st_unknown: 'cannot tell', s_modbad: 'a different version than this page, the game would not draw (tell the operator)', s_srv: 'The server does not answer. Is this page opened from the host server?',
+    s_mod: 'Game module', s_data: 'Game data on the server', s_up: 'updated', s_ok: 'available', s_no: 'unavailable', ac_as: 'Playing as {n} (the account from the games hub).', ac_login: 'Only signed-in players can play. Sign in or create an account at ', ac_wait: 'The account {n} is not allowed this game yet. Reload the page once the admin allows it.', ac_srv: 'The server status shows after you sign in.', ac_down: 'The server cannot reach the games hub right now, so it does not know who you are. Try again in a moment.', s_online: 'Players online', w_head: 'Playing now', w_none: 'Nobody is playing right now.', ac_other: 'another account', s_lan: 'on the LAN', s_since: 'since', s_nobody: 'Nobody is playing right now.', s_modmatch: 'matches this page', s_stored: 'Module in this browser', st_checking: 'checking…', st_none: 'not stored, downloaded at start', st_have: 'stored', st_ok: 'stored, verified (matches the server)', st_bad: 'stored but DAMAGED: downloaded again at start', st_old: 'an older version stored: the new one is downloaded at start', st_unknown: 'cannot tell', s_modbad: 'a different version than this page, the game would not draw (tell the operator)', s_srv: 'The server does not answer. Is this page opened from the host server?',
     l_chk: 'Browser check', l_mod: 'Downloading the game module', l_data: 'Connecting to the game data', l_go: 'Starting the game',
     l_sub0: 'One moment…', l_sub_mod: 'Downloading the module. Next time it loads from the browser cache.', l_sub_go: 'Opening the game. You will see the rest of the loading on its page.',
     l_err_mod: 'The module could not be downloaded.', l_err_modbad: 'The downloaded module is damaged (checksum mismatch). Try again, or clear the stored module under Advanced.', l_err_modsrv: 'The server sends a different game module than this page belongs to. The game would not draw properly: tell the server operator.', mod_redo: 'the stored module was damaged or old: downloading again', mod_ok: 'verified', l_err_data: 'The game data on the server is not available.',
@@ -467,15 +475,18 @@ function drawSrv() {
   row(t('s_mod'), (srv.size ? nf().format(srv.size / 1048576) + ' ' + t('mb') : t('s_ok')) + ver + when + (srv.match === false ? ' – ' + t('s_modbad') : srv.match ? ', ' + t('s_modmatch') : ''), srv.match === false ? 'off' : 'on');
   if (srv.stored) row(t('s_stored'), t('st_' + srv.stored), srv.stored === 'ok' || srv.stored === 'have' ? 'on' : srv.stored === 'bad' ? 'off' : 'wait');
   row(t('s_data'), srv.data ? t('s_ok') : t('s_no'), srv.data ? 'on' : 'off');
+  const who = $('#who'); who.textContent = ''; who.hidden = !online;
   if (online) {
-    // who is playing now (GET /presence): the count, the names under a click
-    const d = el('details'), s = el('summary'); s.style.cursor = 'pointer';
-    s.append(el('span', null, 'dot ' + (online.length ? 'on' : 'wait')), t('s_online') + ': ', el('b', String(online.length)));
-    d.append(s);
-    if (online.length) for (const pl of online) d.append(el('div', '· ' + pl.name + (pl.lan ? ' (' + t('s_lan') + ')' : '') + ' – ' + t('s_since') + ' ' + new Date(pl.since).toLocaleTimeString(lang === 'cs' ? 'cs-CZ' : 'en-GB', { timeStyle: 'short' })));
-    else d.append(el('div', t('s_nobody')));
-    d.open = onlineOpen; d.addEventListener('toggle', () => { onlineOpen = d.open; });
-    box.append(d);
+    // who is playing now (GET /presence): the names right there, with their LAN state
+    if (!online.length) who.append(el('div', t('w_none')));
+    else {
+      who.append(el('h4', t('w_head') + ' (' + online.length + ')'));
+      for (const pl of online) {
+        const d = el('div', null, 'pl'); d.append(el('span', null, 'dot on'), pl.name, ' ');
+        d.append(el('small', (pl.lan ? t('s_lan') + ' · ' : '') + t('s_since') + ' ' + new Date(pl.since).toLocaleTimeString(lang === 'cs' ? 'cs-CZ' : 'en-GB', { timeStyle: 'short' })));
+        who.append(d);
+      }
+    }
   }
   $('#ver').textContent = srv.mod ? srv.mod.toLocaleDateString(lang === 'cs' ? 'cs-CZ' : 'en-GB') : '';
 }
@@ -773,7 +784,11 @@ async function account() {
   const box = $('#acct-note'); box.textContent = '';
   name.readOnly = true;
   name.value = acct.me ? acct.me.nick : '';
-  if (acct.me && acct.me.ok) box.textContent = t('ac_as').replace('{n}', acct.me.nick);
+  // with accounts the name is the account's: shown as it is, no field to type into
+  name.hidden = true; $('#name-hint').hidden = true;
+  const fix = $('#name-fix'); fix.textContent = ''; fix.hidden = !acct.me;
+  if (acct.me) { const a = el('a', t('ac_other')); a.href = acct.login; fix.append(acct.me.nick, a); }
+  if (acct.me && acct.me.ok) box.textContent = '';
   else {
     $('#go').disabled = true;
     if (acct.me) box.textContent = t('ac_wait').replace('{n}', acct.me.nick);
